@@ -71,6 +71,11 @@ end
 target 'Runner' do
   use_frameworks!
 
+  # Local no-op stub so the `import ffmpeg_kit_flutter_new` in
+  # GeneratedPluginRegistrant.swift compiles; actual FFmpeg calls on macOS
+  # go through the bundled binary via Process.run, not this plugin.
+  pod 'ffmpeg_kit_flutter_new', path: 'local_pods/ffmpeg_kit_flutter_new'
+
   flutter_install_all_macos_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

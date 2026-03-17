@@ -24,8 +24,7 @@ class _HomePageState extends State<HomePage> {
 
   final _compressionService = CompressionService();
 
-  static const _supportedFormats =
-      'Images: JPG, JPEG, PNG, WebP, HEIC, HEIF\n'
+  static const _supportedFormats = 'Images: JPG, JPEG, PNG, WebP, HEIC, HEIF\n'
       'Videos: MP4, MOV, M4V, AVI, MKV, WebM\n'
       'Documents: PDF';
 
@@ -47,8 +46,7 @@ class _HomePageState extends State<HomePage> {
     ].request();
 
     final granted = statuses.values.any((s) => s.isGranted);
-    final permanentlyDenied =
-        statuses.values.any((s) => s.isPermanentlyDenied);
+    final permanentlyDenied = statuses.values.any((s) => s.isPermanentlyDenied);
 
     if (!granted && permanentlyDenied) {
       _showPermissionDeniedDialog();
@@ -98,23 +96,53 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    // On desktop, NSOpenPanel/GetOpenFileName can silently grey out files when
+    // extension-based UTType filtering fails on newer OS versions — use
+    // FileType.any and validate the extension ourselves instead.
+    final useCustomFilter = Platform.isAndroid || Platform.isIOS;
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: [
-        'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif',
-        'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm',
-        'pdf',
-      ],
-      compressionQuality: 100, // no compression — process raw file ourselves
+      type: useCustomFilter ? FileType.custom : FileType.any,
+      allowedExtensions: useCustomFilter
+          ? [
+              'jpg',
+              'jpeg',
+              'png',
+              'webp',
+              'heic',
+              'heif',
+              'mp4',
+              'mov',
+              'm4v',
+              'avi',
+              'mkv',
+              'webm',
+              'pdf',
+            ]
+          : null,
+      compressionQuality: 100,
     );
 
     if (result == null || result.files.isEmpty) return;
     final path = result.files.first.path;
     if (path == null) return;
 
+    final kind = inferFileKind(path);
+    if (!useCustomFilter && kind == FileKind.unsupported) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unsupported file type. Please select an image, video, or PDF.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _selectedFile = File(path);
-      _selectedKind = inferFileKind(path);
+      _selectedKind = kind;
       _lastResult = null;
     });
   }
@@ -301,7 +329,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Compress. Offline. Safe.',
+          'Offline. Safe.',
           style: TextStyle(
             fontSize: 14,
             color: scheme.onSurface.withValues(alpha: 0.5),
@@ -540,5 +568,3 @@ class _HomePageState extends State<HomePage> {
     }
   }
 }
-
-

@@ -1,0 +1,174 @@
+name: Release
+
+# Triggered by pushing a version tag, e.g.: git tag v1.0.0 && git push origin v1.0.0
+# Can also be triggered manually from the Actions tab.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Android — builds a signed APK (falls back to debug signing if no keystore)
+  # ────────────────────────────────────────────────────────────────────────────
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Set up signing keystore
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/kivo.jks
+          printf "storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}\nkeyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}\nkeyAlias=${{ secrets.ANDROID_KEY_ALIAS }}\nstoreFile=kivo.jks\n" > android/key.properties
+
+      - run: flutter pub get
+
+      - run: flutter build apk --release
+
+      - name: Rename artifact
+        run: mv build/app/outputs/flutter-apk/app-release.apk kivo-android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: kivo-android.apk
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # macOS — embeds a static FFmpeg binary and packages as a .zip
+  # ────────────────────────────────────────────────────────────────────────────
+  macos:
+    name: macOS App
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Embed static FFmpeg for macOS
+        run: |
+          curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip" -o ffmpeg.zip
+          unzip -j ffmpeg.zip -d assets/bin/macos/
+          chmod +x assets/bin/macos/ffmpeg
+
+      - run: flutter pub get
+
+      - run: flutter build macos --release
+
+      - name: Package as zip
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r "$GITHUB_WORKSPACE/kivo-macos.zip" kivo.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: kivo-macos.zip
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Windows — embeds a static FFmpeg binary and packages as a .zip
+  # ────────────────────────────────────────────────────────────────────────────
+  windows:
+    name: Windows App
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Embed static FFmpeg for Windows
+        shell: pwsh
+        run: |
+          $url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          Invoke-WebRequest $url -OutFile ffmpeg-win.zip
+          Expand-Archive ffmpeg-win.zip -DestinationPath ffmpeg-win -Force
+          $ffmpeg = Get-ChildItem -Recurse ffmpeg-win -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $ffmpeg.FullName assets\bin\windows\ffmpeg.exe
+
+      - run: flutter pub get
+
+      - run: flutter build windows --release
+
+      - name: Package as zip
+        shell: pwsh
+        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath kivo-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: kivo-windows.zip
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Linux — embeds a static FFmpeg binary and packages as a .tar.gz
+  # ────────────────────────────────────────────────────────────────────────────
+  linux:
+    name: Linux App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flutter build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Embed static FFmpeg for Linux
+        run: |
+          wget -q "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+          tar xf ffmpeg-release-amd64-static.tar.xz
+          cp ffmpeg-*-static/ffmpeg assets/bin/linux/ffmpeg
+          chmod +x assets/bin/linux/ffmpeg
+
+      - run: flutter pub get
+
+      - run: flutter build linux --release
+
+      - name: Package as tar.gz
+        run: tar -czf kivo-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: kivo-linux-x64.tar.gz
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Create the GitHub Release with all platform artifacts
+  # ────────────────────────────────────────────────────────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs: [android, macos, windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            kivo-android.apk
+            kivo-macos.zip
+            kivo-windows.zip
+            kivo-linux-x64.tar.gz
