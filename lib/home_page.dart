@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'models/models.dart';
 import 'services/compression_service.dart';
@@ -28,9 +29,75 @@ class _HomePageState extends State<HomePage> {
       'Videos: MP4, MOV, M4V, AVI, MKV, WebM\n'
       'Documents: PDF';
 
+  // ── Permissions ───────────────────────────────────────────────────────────
+
+  /// Requests storage/media permissions on Android. No-op on other platforms.
+  Future<bool> _requestMediaPermissions() async {
+    if (!Platform.isAndroid) return true;
+
+    // On Android 13+ (API 33), READ_MEDIA_IMAGES / READ_MEDIA_VIDEO replace
+    // the legacy READ_EXTERNAL_STORAGE permission.
+    // permission_handler maps Permission.photos → READ_MEDIA_IMAGES and
+    // Permission.videos → READ_MEDIA_VIDEO on API 33+, falling back to
+    // READ_EXTERNAL_STORAGE on older versions.
+    final statuses = await [
+      Permission.photos,
+      Permission.videos,
+      Permission.storage,
+    ].request();
+
+    final granted = statuses.values.any((s) => s.isGranted);
+    final permanentlyDenied =
+        statuses.values.any((s) => s.isPermanentlyDenied);
+
+    if (!granted && permanentlyDenied) {
+      _showPermissionDeniedDialog();
+    }
+
+    return granted;
+  }
+
+  void _showPermissionDeniedDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Permission required'),
+        content: const Text(
+          'Storage access was permanently denied. '
+          'Please enable it in Settings → Apps → KIVO → Permissions.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── File selection ────────────────────────────────────────────────────────
 
   Future<void> _pickFile() async {
+    final hasPermission = await _requestMediaPermissions();
+    if (!hasPermission && Platform.isAndroid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Storage permission is required to pick files.'),
+          ),
+        );
+      }
+      return;
+    }
+
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: [
@@ -38,7 +105,7 @@ class _HomePageState extends State<HomePage> {
         'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm',
         'pdf',
       ],
-      allowCompression: false,
+      compressionQuality: 100, // no compression — process raw file ourselves
     );
 
     if (result == null || result.files.isEmpty) return;
@@ -58,13 +125,32 @@ class _HomePageState extends State<HomePage> {
     final input = _selectedFile;
     if (input == null || _selectedKind == FileKind.unsupported) return;
 
-    final outputPath = await _resolveOutputPath(input, _selectedKind);
-    if (outputPath == null) return; // user cancelled save dialog
+    final ext = outputExtensionFor(_selectedKind);
+    final name = '${fileNameWithoutExtension(input.path)}_compressed.$ext';
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+
+    // Desktop: ask where to save BEFORE compression so the user can cancel early.
+    String? desktopOutputPath;
+    if (!isMobile) {
+      desktopOutputPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save compressed file',
+        fileName: name,
+      );
+      if (desktopOutputPath == null) return; // cancelled
+    }
+
+    // Mobile: compress to a temp file first; ask where to save afterwards.
+    final String compressToPath;
+    if (isMobile) {
+      final tmp = await getTemporaryDirectory();
+      compressToPath = '${tmp.path}/$name';
+    } else {
+      compressToPath = desktopOutputPath!;
+    }
 
     final progress = ValueNotifier<double>(0.0);
     final status = ValueNotifier<String>('Starting…');
 
-    // Show progress dialog (non-awaited; dismissed programmatically)
     if (mounted) {
       ProgressDialog.show(
         context,
@@ -78,7 +164,7 @@ class _HomePageState extends State<HomePage> {
       final result = await _compressionService.compress(
         input,
         _selectedKind,
-        outputPath,
+        compressToPath,
         onProgress: (p) {
           progress.value = p;
           status.value =
@@ -88,10 +174,34 @@ class _HomePageState extends State<HomePage> {
 
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
-      setState(() => _lastResult = result);
+      if (isMobile) {
+        // Read the compressed bytes and let the user pick where to save.
+        // FilePicker.saveFile(bytes: …) uses the Storage Access Framework
+        // (ContentResolver) which works on Android 10+ without extra permissions.
+        final bytes = await File(compressToPath).readAsBytes();
+        try {
+          await File(compressToPath).delete();
+        } catch (_) {}
 
-      if (mounted) {
-        _showResultSnackBar(result);
+        final savedPath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save compressed file',
+          fileName: name,
+          bytes: bytes,
+        );
+        if (savedPath == null) return; // user cancelled
+
+        final finalResult = CompressionResult(
+          outputPath: savedPath,
+          originalBytes: result.originalBytes,
+          compressedBytes: result.compressedBytes,
+          improved: result.improved,
+          note: result.note,
+        );
+        setState(() => _lastResult = finalResult);
+        if (mounted) _showResultSnackBar(finalResult);
+      } else {
+        setState(() => _lastResult = result);
+        if (mounted) _showResultSnackBar(result);
       }
     } catch (e) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
@@ -109,22 +219,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<String?> _resolveOutputPath(File input, FileKind kind) async {
-    final ext = outputExtensionFor(kind);
-    final name = '${fileNameWithoutExtension(input.path)}_compressed.$ext';
-
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-      return FilePicker.platform.saveFile(
-        dialogTitle: 'Save compressed file',
-        fileName: name,
-      );
-    }
-
-    // Mobile: save to documents directory
-    final dir = await getApplicationDocumentsDirectory();
-    return '${dir.path}/$name';
-  }
-
   String _statusLabelFor(FileKind kind) {
     switch (kind) {
       case FileKind.image:
@@ -140,11 +234,11 @@ class _HomePageState extends State<HomePage> {
 
   void _showResultSnackBar(CompressionResult r) {
     final msg = r.improved
-        ? 'Saved ${r.reductionPercent.toStringAsFixed(1)}% '
+        ? '${r.reductionPercent.toStringAsFixed(1)}% smaller '
             '(${formatBytes(r.originalBytes)} → ${formatBytes(r.compressedBytes)})'
-        : 'File already optimized.';
+        : 'File saved (already well-compressed).';
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 4)),
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 5)),
     );
   }
 
@@ -207,7 +301,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Compress anything. Fast.',
+          'Compress. Offline. Safe.',
           style: TextStyle(
             fontSize: 14,
             color: scheme.onSurface.withValues(alpha: 0.5),
@@ -350,7 +444,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(width: 8),
               Text(
-                result.improved ? 'Compression complete' : 'Already optimized',
+                result.improved ? 'Compression complete' : 'File saved',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
@@ -380,7 +474,9 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${formatBytes(result.originalBytes)}  →  ${formatBytes(result.compressedBytes)}',
+            result.improved
+                ? '${formatBytes(result.originalBytes)}  →  ${formatBytes(result.compressedBytes)}'
+                : formatBytes(result.originalBytes),
             style: TextStyle(
               fontSize: 13,
               color: scheme.onSurface.withValues(alpha: 0.7),
@@ -388,12 +484,12 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 4),
           Text(
-            fileBasename(result.outputPath),
+            result.outputPath,
             style: TextStyle(
-              fontSize: 12,
-              color: scheme.onSurface.withValues(alpha: 0.45),
+              fontSize: 11,
+              color: scheme.onSurface.withValues(alpha: 0.4),
             ),
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -444,3 +540,5 @@ class _HomePageState extends State<HomePage> {
     }
   }
 }
+
+

@@ -26,6 +26,48 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_macos_podfile_setup
 
+# Override to exclude ffmpeg_kit_* plugins from macOS — they only provide
+# pre-built binaries for iOS/Android; desktop uses the bundled FFmpeg binary.
+def flutter_install_all_macos_pods(macos_application_path = nil)
+  macos_application_path ||= File.dirname(defined_in_file.realpath) if respond_to?(:defined_in_file)
+
+  flutter_install_macos_engine_pod(macos_application_path)
+
+  # Replicate flutter_install_plugin_pods but skip ffmpeg_kit_* plugins.
+  symlink_dir = File.expand_path(File.join('Flutter', 'ephemeral', '.symlinks'), macos_application_path)
+  system('rm', '-rf', symlink_dir)
+
+  symlink_plugins_dir = File.expand_path('plugins', symlink_dir)
+  system('mkdir', '-p', symlink_plugins_dir)
+
+  plugins_file = File.join(macos_application_path, '..', '.flutter-plugins-dependencies')
+  dependencies_hash = flutter_parse_plugins_file(plugins_file)
+  plugin_pods = flutter_get_plugins_list(dependencies_hash, 'macos')
+  swift_pm_enabled = flutter_get_swift_package_manager_enabled(dependencies_hash, 'macos')
+
+  plugin_pods.each do |plugin_hash|
+    plugin_name = plugin_hash['name']
+    plugin_path = plugin_hash['path']
+    has_native_build = plugin_hash.fetch('native_build', true)
+    shared_darwin_source = plugin_hash.fetch('shared_darwin_source', false)
+    platform_directory = shared_darwin_source ? 'darwin' : 'macos'
+
+    next unless plugin_name && plugin_path && has_native_build
+    next if plugin_name.start_with?('ffmpeg_kit')   # ← exclude ffmpeg_kit on macOS
+
+    symlink = File.join(symlink_plugins_dir, plugin_name)
+    File.symlink(plugin_path, symlink)
+
+    relative = flutter_relative_path_from_podfile(symlink)
+
+    swift_package_exists = File.exist?(File.join(relative, platform_directory, plugin_name, 'Package.swift'))
+    next if swift_pm_enabled && swift_package_exists
+    next if swift_package_exists && !File.exist?(File.join(relative, platform_directory, plugin_name + '.podspec'))
+
+    pod plugin_name, path: File.join(relative, platform_directory)
+  end
+end
+
 target 'Runner' do
   use_frameworks!
 

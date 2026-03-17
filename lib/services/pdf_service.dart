@@ -12,44 +12,75 @@ class PdfService {
     File input,
     String outputPath, {
     void Function(double)? onProgress,
-    double dpi = 150.0,
-    int jpegQuality = 80,
   }) async {
     onProgress?.call(0.05);
     final originalBytes = await input.length();
     final inputBytes = await input.readAsBytes();
 
-    // Rasterize pages
-    final rasters = Printing.raster(inputBytes, dpi: dpi);
+    // Lower DPI on mobile to stay within memory limits.
+    final dpi = (Platform.isAndroid || Platform.isIOS) ? 96.0 : 150.0;
+
+    // Try quality 65 first; fall back to quality 45 if gain is below 5 %.
+    // Quality 65 is visually good and produces meaningful reductions for most
+    // PDFs. Quality 45 is a safety net for PDFs with already-compressed images.
+    for (final quality in [65, 45]) {
+      final result = await _rasterize(
+        input: input,
+        inputBytes: inputBytes,
+        outputPath: outputPath,
+        originalBytes: originalBytes,
+        dpi: dpi,
+        jpegQuality: quality,
+        onProgress: onProgress,
+      );
+      if (result != null) return result;
+    }
+
+    // Both passes failed to shrink the file — return the original unchanged.
+    await input.copy(outputPath);
+    onProgress?.call(1.0);
+    return CompressionResult(
+      outputPath: outputPath,
+      originalBytes: originalBytes,
+      compressedBytes: originalBytes,
+      improved: false,
+      note: 'PDF already at minimum size; original copied.',
+    );
+  }
+
+  /// Rasterizes [input] and returns a [CompressionResult] if the rasterized
+  /// PDF is at least 1 % smaller than [originalBytes]. Returns null otherwise.
+  Future<CompressionResult?> _rasterize({
+    required File input,
+    required Uint8List inputBytes,
+    required String outputPath,
+    required int originalBytes,
+    required double dpi,
+    required int jpegQuality,
+    void Function(double)? onProgress,
+  }) async {
     final doc = pw.Document();
+    int pageIndex = 0;
 
-    // Count pages first for accurate progress
-    final pages = await rasters.toList();
-    final total = pages.length;
-
-    for (int i = 0; i < total; i++) {
-      final page = pages[i];
+    await for (final page in Printing.raster(inputBytes, dpi: dpi)) {
       final uiImage = await page.toImage();
       final byteData =
           await uiImage.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) throw Exception('Failed to rasterize page ${i + 1}.');
+      if (byteData == null) return null;
 
-      final pngBytes = byteData.buffer.asUint8List();
-      final decoded = img.decodePng(pngBytes);
-      if (decoded == null) throw Exception('Failed to decode page ${i + 1}.');
+      final decoded = img.decodePng(byteData.buffer.asUint8List());
+      if (decoded == null) return null;
 
       final jpgBytes = Uint8List.fromList(
         img.encodeJpg(decoded, quality: jpegQuality),
       );
 
-      final pageFormat = pdf_lib.PdfPageFormat(
-        (page.width / dpi) * 72.0,
-        (page.height / dpi) * 72.0,
-      );
-
       doc.addPage(
         pw.Page(
-          pageFormat: pageFormat,
+          pageFormat: pdf_lib.PdfPageFormat(
+            (page.width / dpi) * 72.0,
+            (page.height / dpi) * 72.0,
+          ),
           build: (_) => pw.Image(
             pw.MemoryImage(jpgBytes),
             fit: pw.BoxFit.fill,
@@ -57,25 +88,30 @@ class PdfService {
         ),
       );
 
-      onProgress?.call(0.1 + 0.8 * ((i + 1) / total));
+      pageIndex++;
+      onProgress?.call(
+        (0.1 + 0.8 * pageIndex / (pageIndex + 1)).clamp(0.1, 0.9),
+      );
     }
 
     final outBytes = await doc.save();
+
+    // Require at least 1 % reduction to consider this a win.
+    if (outBytes.length >= originalBytes ||
+        (1 - outBytes.length / originalBytes) < 0.01) {
+      return null;
+    }
+
     await File(outputPath).writeAsBytes(outBytes, flush: true);
     onProgress?.call(1.0);
-
-    final improved =
-        outBytes.length < originalBytes &&
-        (1 - outBytes.length / originalBytes) > 0.03;
 
     return CompressionResult(
       outputPath: outputPath,
       originalBytes: originalBytes,
       compressedBytes: outBytes.length,
-      improved: improved,
-      note: improved
-          ? 'Rasterized at ${dpi.toStringAsFixed(0)} DPI, re-encoded as JPEG (quality=$jpegQuality).'
-          : 'PDF already optimized; output may be similar size.',
+      improved: true,
+      note:
+          'Rasterized at ${dpi.toStringAsFixed(0)} DPI, JPEG quality $jpegQuality.',
     );
   }
 }
