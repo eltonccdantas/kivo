@@ -40,31 +40,41 @@ class _HomePageState extends State<HomePage> {
   // ── File selection ────────────────────────────────────────────────────────
 
   Future<void> _pickFile() async {
-
     // iOS: use FileType.custom so the system picker shows only supported types.
     // Android & desktop: FileType.any — custom MIME filtering can silently fail
     // in release builds; we validate the extension in Dart after selection.
     final useCustomFilter = Platform.isIOS;
-    final result = await FilePicker.platform.pickFiles(
-      type: useCustomFilter ? FileType.custom : FileType.any,
-      allowedExtensions: useCustomFilter
-          ? [
-              'jpg',
-              'jpeg',
-              'png',
-              'webp',
-              'heic',
-              'heif',
-              'mp4',
-              'mov',
-              'm4v',
-              'avi',
-              'mkv',
-              'webm',
-              'pdf',
-            ]
-          : null,
-    );
+
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: useCustomFilter ? FileType.custom : FileType.any,
+        allowedExtensions: useCustomFilter
+            ? [
+                'jpg',
+                'jpeg',
+                'png',
+                'webp',
+                'heic',
+                'heif',
+                'mp4',
+                'mov',
+                'm4v',
+                'avi',
+                'mkv',
+                'webm',
+                'pdf',
+              ]
+            : null,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening file picker: $e')),
+        );
+      }
+      return;
+    }
 
     if (result == null || result.files.isEmpty) return;
     final path = result.files.first.path;
