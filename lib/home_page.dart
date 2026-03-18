@@ -4,7 +4,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import 'models/models.dart';
 import 'services/compression_service.dart';
@@ -38,73 +37,9 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // ── Permissions ───────────────────────────────────────────────────────────
-
-  /// Requests storage/media permissions on Android. No-op on other platforms.
-  Future<bool> _requestMediaPermissions() async {
-    if (!Platform.isAndroid) return true;
-
-    // On Android 13+ (API 33), READ_MEDIA_IMAGES / READ_MEDIA_VIDEO replace
-    // the legacy READ_EXTERNAL_STORAGE permission.
-    // permission_handler maps Permission.photos → READ_MEDIA_IMAGES and
-    // Permission.videos → READ_MEDIA_VIDEO on API 33+, falling back to
-    // READ_EXTERNAL_STORAGE on older versions.
-    final statuses = await [
-      Permission.photos,
-      Permission.videos,
-      Permission.storage,
-    ].request();
-
-    final granted = statuses.values.any((s) => s.isGranted);
-    final permanentlyDenied = statuses.values.any((s) => s.isPermanentlyDenied);
-
-    if (!granted && permanentlyDenied) {
-      _showPermissionDeniedDialog();
-    }
-
-    return granted;
-  }
-
-  void _showPermissionDeniedDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Permission required'),
-        content: const Text(
-          'Storage access was permanently denied. '
-          'Please enable it in Settings → Apps → KIVO → Permissions.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              openAppSettings();
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── File selection ────────────────────────────────────────────────────────
 
   Future<void> _pickFile() async {
-    final hasPermission = await _requestMediaPermissions();
-    if (!hasPermission && Platform.isAndroid) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Storage permission is required to pick files.'),
-          ),
-        );
-      }
-      return;
-    }
 
     // iOS: use FileType.custom so the system picker shows only supported types.
     // Android & desktop: FileType.any — custom MIME filtering can silently fail
