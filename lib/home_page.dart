@@ -96,10 +96,10 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    // On desktop, NSOpenPanel/GetOpenFileName can silently grey out files when
-    // extension-based UTType filtering fails on newer OS versions — use
-    // FileType.any and validate the extension ourselves instead.
-    final useCustomFilter = Platform.isAndroid || Platform.isIOS;
+    // iOS: use FileType.custom so the system picker shows only supported types.
+    // Android & desktop: FileType.any — custom MIME filtering can silently fail
+    // in release builds; we validate the extension in Dart after selection.
+    final useCustomFilter = Platform.isIOS;
     final result = await FilePicker.platform.pickFiles(
       type: useCustomFilter ? FileType.custom : FileType.any,
       allowedExtensions: useCustomFilter
@@ -119,7 +119,6 @@ class _HomePageState extends State<HomePage> {
               'pdf',
             ]
           : null,
-      compressionQuality: 100,
     );
 
     if (result == null || result.files.isEmpty) return;
