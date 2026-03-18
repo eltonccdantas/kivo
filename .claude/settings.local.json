@@ -28,7 +28,12 @@
       "Bash(/dev/null ls:*)",
       "Bash(xargs cat:*)",
       "Bash(curl -sI \"https://github.com/sk3llo/ffmpeg_kit_flutter/releases/download/8.0.0-full-gpl/ffmpeg-kit-macos-full-gpl-8.0.0.zip\")",
-      "Bash(curl -sIL \"https://github.com/sk3llo/ffmpeg_kit_flutter/releases/download/8.0.0-full-gpl/ffmpeg-kit-macos-full-gpl-8.0.0.zip\")"
+      "Bash(curl -sIL \"https://github.com/sk3llo/ffmpeg_kit_flutter/releases/download/8.0.0-full-gpl/ffmpeg-kit-macos-full-gpl-8.0.0.zip\")",
+      "Bash(pod install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(dart run:*)"
     ]
   }
 }

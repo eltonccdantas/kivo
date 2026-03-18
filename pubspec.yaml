@@ -1,7 +1,7 @@
 name: kivo
 description: KIVO – High-efficiency compressor for videos, images, and PDFs.
 publish_to: "none"
-version: 1.0.0
+version: 2.0.1+1
 
 environment:
   sdk: ">=3.2.0 <4.0.0"
@@ -22,10 +22,28 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  image_path: assets/images/logo.png
+  android: true
+  ios: true
+  adaptive_icon_background: "#1C1C1E"
+  adaptive_icon_foreground: assets/images/logo.png
+  macos:
+    generate: true
+    image_path: assets/images/logo.png
+  windows:
+    generate: true
+    image_path: assets/images/logo.png
+  linux:
+    generate: true
+    image_path: assets/images/logo.png
 
 flutter:
   uses-material-design: true
   assets:
+    - assets/images/
     - assets/bin/macos/ffmpeg
     - assets/bin/windows/ffmpeg.exe
     - assets/bin/linux/ffmpeg

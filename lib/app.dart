@@ -15,10 +15,10 @@ class KivoApp extends StatelessWidget {
   }
 
   ThemeData _buildTheme() {
-    const primary = Color(0xFF7C4DFF);
-    const secondary = Color(0xFF00BCD4);
-    const bg = Color(0xFF0D0D1A);
-    const surface = Color(0xFF1A1B2E);
+    const primary = Color(0xFF0A84FF);   // iOS / macOS blue
+    const secondary = Color(0xFF64B5F6); // lighter blue accent
+    const bg = Color(0xFF1C1C1E);        // dark gray
+    const surface = Color(0xFF2C2C2E);   // slightly lighter surface
 
     return ThemeData(
       useMaterial3: true,

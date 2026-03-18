@@ -287,7 +287,7 @@ class _HomePageState extends State<HomePage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _buildHeader(scheme),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 28),
                   _buildFileCard(scheme),
                   const SizedBox(height: 12),
                   if (_lastResult != null) ...[
@@ -296,7 +296,9 @@ class _HomePageState extends State<HomePage> {
                   ],
                   const Spacer(),
                   _buildActions(scheme),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 20),
+                  _buildFooter(scheme),
+                  const SizedBox(height: 4),
                 ],
               ),
             ),
@@ -307,34 +309,66 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildHeader(ColorScheme scheme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        ShaderMask(
-          shaderCallback: (bounds) => LinearGradient(
-            colors: [scheme.primary, scheme.secondary],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ).createShader(bounds),
-          child: const Text(
-            'KIVO',
-            style: TextStyle(
-              fontSize: 52,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: -2,
-              height: 1,
-            ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16), // ajuste o valor como quiser
+          child: Image.asset(
+            'assets/images/logo.png',
+            width: 100,
+            height: 100,
+            fit: BoxFit.contain,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'KIVO',
+              style: TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -1.5,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Offline. Safe.',
+              style: TextStyle(
+                fontSize: 13,
+                color: scheme.onSurface.withValues(alpha: 0.5),
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooter(ColorScheme scheme) {
+    return Column(
+      children: [
         Text(
-          'Offline. Safe.',
+          'eltondantas.com =)',
           style: TextStyle(
-            fontSize: 14,
-            color: scheme.onSurface.withValues(alpha: 0.5),
-            letterSpacing: 0.2,
+            fontSize: 12,
+            color: scheme.onSurface.withValues(alpha: 0.35),
+            fontWeight: FontWeight.w500,
           ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'v2.0.1',
+          style: TextStyle(
+            fontSize: 11,
+            color: scheme.onSurface.withValues(alpha: 0.22),
+          ),
+          textAlign: TextAlign.center,
         ),
       ],
     );

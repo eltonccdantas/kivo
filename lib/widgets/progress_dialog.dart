@@ -94,18 +94,6 @@ class ProgressDialog extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(height: 20),
-              ValueListenableBuilder<String>(
-                valueListenable: statusMessage,
-                builder: (_, msg, __) => Text(
-                  msg,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: scheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
