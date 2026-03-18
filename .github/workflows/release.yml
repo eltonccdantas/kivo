@@ -8,9 +8,6 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
   # Android — builds a signed APK (falls back to debug signing if no keystore)
@@ -19,7 +16,7 @@ jobs:
     name: Android APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - uses: subosito/flutter-action@v2
         with:
@@ -40,7 +37,7 @@ jobs:
       - name: Rename artifact
         run: mv build/app/outputs/flutter-apk/app-release.apk kivo-android.apk
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: android
           path: kivo-android.apk
@@ -52,7 +49,7 @@ jobs:
     name: macOS App
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - uses: subosito/flutter-action@v2
         with:
@@ -73,7 +70,7 @@ jobs:
           cd build/macos/Build/Products/Release
           zip -r "$GITHUB_WORKSPACE/kivo-macos.zip" kivo.app
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: macos
           path: kivo-macos.zip
@@ -85,7 +82,7 @@ jobs:
     name: Windows App
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - uses: subosito/flutter-action@v2
         with:
@@ -108,7 +105,7 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath kivo-windows.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: windows
           path: kivo-windows.zip
@@ -120,7 +117,7 @@ jobs:
     name: Linux App
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Install Flutter build dependencies
         run: |
@@ -147,7 +144,7 @@ jobs:
       - name: Package as tar.gz
         run: tar -czf kivo-linux-x64.tar.gz -C build/linux/x64/release/bundle .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: linux
           path: kivo-linux-x64.tar.gz
@@ -162,7 +159,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4.3.0
         with:
           merge-multiple: true
 
