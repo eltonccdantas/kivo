@@ -58,7 +58,7 @@ jobs:
       - name: Embed static FFmpeg for macOS
         run: |
           curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip" -o ffmpeg.zip
-          unzip -j ffmpeg.zip -d assets/bin/macos/
+          unzip -jo ffmpeg.zip -d assets/bin/macos/
           chmod +x assets/bin/macos/ffmpeg
 
       - run: flutter pub get
