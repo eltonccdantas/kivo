@@ -43,10 +43,10 @@ jobs:
           path: kivo-android.apk
 
   # ────────────────────────────────────────────────────────────────────────────
-  # macOS — embeds a static FFmpeg binary and packages as a .zip
+  # macOS Apple Silicon (arm64)
   # ────────────────────────────────────────────────────────────────────────────
-  macos:
-    name: macOS App
+  macos-arm:
+    name: macOS Apple Silicon (arm64)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
         with:
           channel: stable
 
-      - name: Embed static FFmpeg for macOS
+      - name: Embed static FFmpeg for macOS arm64
         run: |
           curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip" -o ffmpeg.zip
           unzip -jo ffmpeg.zip -d assets/bin/macos/
@@ -68,12 +68,45 @@ jobs:
       - name: Package as zip
         run: |
           cd build/macos/Build/Products/Release
-          zip -r "$GITHUB_WORKSPACE/kivo-macos.zip" kivo.app
+          zip -r "$GITHUB_WORKSPACE/kivo-macos-arm64.zip" kivo.app
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos
-          path: kivo-macos.zip
+          name: macos-arm64
+          path: kivo-macos-arm64.zip
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # macOS Intel (x86_64)
+  # ────────────────────────────────────────────────────────────────────────────
+  macos-intel:
+    name: macOS Intel (x86_64)
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Embed FFmpeg for macOS x86_64
+        run: |
+          brew install ffmpeg --quiet
+          cp "$(brew --prefix)/bin/ffmpeg" assets/bin/macos/ffmpeg
+          chmod +x assets/bin/macos/ffmpeg
+
+      - run: flutter pub get
+
+      - run: flutter build macos --release
+
+      - name: Package as zip
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r "$GITHUB_WORKSPACE/kivo-macos-intel.zip" kivo.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-intel
+          path: kivo-macos-intel.zip
 
   # ────────────────────────────────────────────────────────────────────────────
   # Windows — embeds a static FFmpeg binary and packages as a .zip
@@ -154,7 +187,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish GitHub Release
-    needs: [android, macos, windows, linux]
+    needs: [android, macos-arm, macos-intel, windows, linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -169,6 +202,7 @@ jobs:
           generate_release_notes: true
           files: |
             kivo-android.apk
-            kivo-macos.zip
+            kivo-macos-arm64.zip
+            kivo-macos-intel.zip
             kivo-windows.zip
             kivo-linux-x64.tar.gz
