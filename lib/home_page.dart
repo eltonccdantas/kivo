@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -21,12 +22,21 @@ class _HomePageState extends State<HomePage> {
   File? _selectedFile;
   FileKind _selectedKind = FileKind.unsupported;
   CompressionResult? _lastResult;
+  String _appVersion = '';
 
   final _compressionService = CompressionService();
 
   static const _supportedFormats = 'Images: JPG, JPEG, PNG, WebP, HEIC, HEIF\n'
       'Videos: MP4, MOV, M4V, AVI, MKV, WebM\n'
       'Documents: PDF';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _appVersion = 'v${info.version}');
+    });
+  }
 
   // ── Permissions ───────────────────────────────────────────────────────────
 
@@ -362,7 +372,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 2),
         Text(
-          'v2.0.1',
+          _appVersion,
           style: TextStyle(
             fontSize: 11,
             color: scheme.onSurface.withValues(alpha: 0.22),
