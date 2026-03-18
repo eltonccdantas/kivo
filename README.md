@@ -99,15 +99,14 @@ This makes KIVO ideal for compressing confidential documents, personal videos, o
 
 Visit the [releases page](https://github.com/eltonccdantas/kivo/releases) and download the build for your operating system.
 
-| OS                    | File                      |
-|-----------------------|---------------------------|
-| macOS Apple Silicon   | `kivo-macos-arm64.zip`    |
-| macOS Intel           | `kivo-macos-intel.zip`    |
-| Windows               | `kivo-windows.zip`        |
-| Linux                 | `kivo-linux-x64.tar.gz`  |
-| Android               | `kivo-android.apk`        |
+| OS      | File                     |
+|---------|--------------------------|
+| macOS   | `kivo-macos.zip`         |
+| Windows | `kivo-windows.zip`       |
+| Linux   | `kivo-linux-x64.tar.gz` |
+| Android | `kivo-android.apk`       |
 
-> **macOS:** not sure which to download? Apple Silicon = M1, M2, M3, M4 chips. Intel = older Macs from 2020 or earlier.
+> **macOS:** the build is arm64 (Apple Silicon). It also runs on Intel Macs automatically via Rosetta 2.
 
 ---
 
