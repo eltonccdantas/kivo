@@ -83,7 +83,7 @@ class VideoService {
             hevcTmp,
           ];
 
-    final hevcOk = await _runMobileFFmpeg(
+    final (hevcOk, hevcError) = await _runMobileFFmpeg(
       hevcArgs,
       totalSeconds: totalSeconds,
       progressOffset: 0.05,
@@ -131,7 +131,7 @@ class VideoService {
             outputPath,
           ];
 
-    final h264Ok = await _runMobileFFmpeg(
+    final (h264Ok, h264Error) = await _runMobileFFmpeg(
       h264Args,
       totalSeconds: totalSeconds,
       progressOffset: 0.0,
@@ -162,18 +162,15 @@ class VideoService {
       );
     }
 
-    await input.copy(outputPath);
-    onProgress?.call(1.0);
-    return CompressionResult(
-      outputPath: outputPath,
-      originalBytes: originalBytes,
-      compressedBytes: originalBytes,
-      improved: false,
-      note: 'Compression failed; original copied.',
-    );
+    // Both encoders failed — surface the actual FFmpeg error so we can diagnose.
+    final errorDetail = h264Error ?? hevcError ?? 'No details available.';
+    throw Exception('Video encoding failed.\n\n$errorDetail');
   }
 
-  Future<bool> _runMobileFFmpeg(
+  // Returns (success, errorLog). errorLog is non-null only on failure and
+  // contains the last few hundred chars of the FFmpeg output, useful for
+  // surfacing the real reason compression failed (e.g. "Encoder not found").
+  Future<(bool, String?)> _runMobileFFmpeg(
     List<String> args, {
     double totalSeconds = 0,
     double progressOffset = 0,
@@ -181,14 +178,24 @@ class VideoService {
     void Function(double)? onProgress,
     CancellationToken? cancellationToken,
   }) async {
-    final completer = Completer<bool>();
+    final completer = Completer<(bool, String?)>();
 
     try {
       await FFmpegKit.executeWithArgumentsAsync(
         args,
         (session) async {
           final rc = await session.getReturnCode();
-          completer.complete(ReturnCode.isSuccess(rc));
+          final success = ReturnCode.isSuccess(rc);
+          if (success) {
+            completer.complete((true, null));
+          } else {
+            // Capture the tail of the log so callers can surface the error.
+            final raw = await session.getAllLogsAsString();
+            final tail = raw != null && raw.length > 600
+                ? raw.substring(raw.length - 600)
+                : raw;
+            completer.complete((false, tail));
+          }
         },
         null,
         totalSeconds > 0 && onProgress != null
@@ -202,7 +209,7 @@ class VideoService {
             : null,
       );
     } on MissingPluginException {
-      completer.complete(false);
+      completer.complete((false, 'FFmpegKit plugin not available.'));
       return completer.future;
     }
 
