@@ -17,3 +17,6 @@
 # Keep all Flutter plugin registrants
 -keep class * extends io.flutter.plugin.common.PluginRegistry { *; }
 -keep class * implements io.flutter.plugin.common.PluginRegistry$PluginRegistrantCallback { *; }
+
+# Flutter Play Store deferred components — not used by this app, suppress missing-class errors
+-dontwarn com.google.android.play.core.**

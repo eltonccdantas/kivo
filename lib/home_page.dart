@@ -266,7 +266,7 @@ class _HomePageState extends State<HomePage> {
     return Row(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(16), // ajuste o valor como quiser
+          borderRadius: BorderRadius.circular(16),
           child: Image.asset(
             'assets/images/logo.png',
             width: 100,
@@ -275,31 +275,51 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'KIVO',
-              style: TextStyle(
-                fontSize: 42,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: -1.5,
-                height: 1,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'KIVO',
+                style: TextStyle(
+                  fontSize: 42,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: -1.5,
+                  height: 1,
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              'Offline. Safe.',
-              style: TextStyle(
-                fontSize: 13,
-                color: scheme.onSurface.withValues(alpha: 0.5),
-                letterSpacing: 0.2,
+              const SizedBox(height: 3),
+              Text(
+                'Offline. Safe.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: scheme.onSurface.withValues(alpha: 0.5),
+                  letterSpacing: 0.2,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: () => _showInfoModal(context, scheme),
+          icon: Icon(
+            Icons.help_outline_rounded,
+            color: scheme.onSurface.withValues(alpha: 0.45),
+            size: 24,
+          ),
+          tooltip: 'About KIVO',
         ),
       ],
+    );
+  }
+
+  void _showInfoModal(BuildContext ctx, ColorScheme scheme) {
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _InfoSheet(scheme: scheme),
     );
   }
 
@@ -554,5 +574,252 @@ class _HomePageState extends State<HomePage> {
       case FileKind.unsupported:
         return 'Unknown';
     }
+  }
+}
+
+// ── Info modal ────────────────────────────────────────────────────────────────
+
+class _InfoSheet extends StatelessWidget {
+  const _InfoSheet({required this.scheme});
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, controller) => Container(
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: scheme.onSurface.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+                children: [
+                  // Title
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.info_outline_rounded,
+                            color: scheme.primary, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        'About KIVO',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurface,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Privacy
+                  _Section(
+                    scheme: scheme,
+                    icon: Icons.lock_outline_rounded,
+                    iconColor: const Color(0xFF22C55E),
+                    title: 'Your files never leave your device',
+                    body:
+                        'Everything happens locally. KIVO does not upload, '
+                        'send, or store your files anywhere. No internet '
+                        'connection is needed — not even for setup.',
+                  ),
+                  const SizedBox(height: 16),
+
+                  // How it works
+                  _Section(
+                    scheme: scheme,
+                    icon: Icons.auto_fix_high_rounded,
+                    iconColor: scheme.primary,
+                    title: 'Smart compression',
+                    body:
+                        'KIVO analyses each file and applies the best '
+                        'algorithm for its type:\n\n'
+                        '• Images — re-encoded at a slightly lower quality '
+                        'that is imperceptible to the eye.\n'
+                        '• Videos — transcoded to HEVC (H.265), the same '
+                        'standard used by modern phones.\n'
+                        '• PDFs — images inside the document are optimised '
+                        'without affecting text or layout.',
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Supported formats
+                  _Section(
+                    scheme: scheme,
+                    icon: Icons.folder_open_rounded,
+                    iconColor: const Color(0xFFF59E0B),
+                    title: 'Supported formats',
+                    body: '',
+                    child: _FormatsGrid(scheme: scheme),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Tips
+                  _Section(
+                    scheme: scheme,
+                    icon: Icons.lightbulb_outline_rounded,
+                    iconColor: const Color(0xFF818CF8),
+                    title: 'Good to know',
+                    body:
+                        '• Results vary by file — a heavily compressed video '
+                        'may not shrink much further.\n'
+                        '• The original file is never modified or deleted.\n'
+                        '• Video compression can take a minute or two for '
+                        'large files.',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.scheme,
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.body,
+    this.child,
+  });
+
+  final ColorScheme scheme;
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String body;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: scheme.onSurface.withValues(alpha: 0.07),
+        ),
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              body,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.55,
+                color: scheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+          if (child != null) ...[
+            const SizedBox(height: 12),
+            child!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FormatsGrid extends StatelessWidget {
+  const _FormatsGrid({required this.scheme});
+  final ColorScheme scheme;
+
+  static const _groups = [
+    (Icons.image_outlined, 'Images', 'JPG · JPEG · PNG\nWebP · HEIC · HEIF'),
+    (Icons.videocam_outlined, 'Videos', 'MP4 · MOV · M4V\nAVI · MKV · WebM'),
+    (Icons.picture_as_pdf_outlined, 'Documents', 'PDF'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: _groups
+          .map(
+            (g) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Icon(g.$1,
+                      size: 18,
+                      color: scheme.onSurface.withValues(alpha: 0.45)),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        g.$2,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurface.withValues(alpha: 0.9),
+                        ),
+                      ),
+                      Text(
+                        g.$3,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurface.withValues(alpha: 0.5),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+    );
   }
 }

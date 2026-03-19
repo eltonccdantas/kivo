@@ -34,7 +34,10 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(dart run:*)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(adb logcat:*)",
+      "Bash(grep -r \"CHANNEL\\\\|channel.*=.*\" /Users/e.dantas/.pub-cache/hosted/pub.dev/ffmpeg_kit_flutter_new-*/android/src/main/kotlin/)",
+      "Bash(find /Users/e.dantas/.pub-cache/hosted/pub.dev -path *ffmpeg_kit* -name *.kt)"
     ]
   }
 }

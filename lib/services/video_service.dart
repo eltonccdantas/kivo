@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'package:flutter/services.dart';
 
 import '../models/models.dart';
 import '../utils/binary_extractor.dart';
@@ -125,23 +126,29 @@ class VideoService {
   }) async {
     final completer = Completer<bool>();
 
-    await FFmpegKit.executeWithArgumentsAsync(
-      args,
-      (session) async {
-        final rc = await session.getReturnCode();
-        completer.complete(ReturnCode.isSuccess(rc));
-      },
-      null,
-      totalSeconds > 0 && onProgress != null
-          ? (stats) {
-              final ms = stats.getTime();
-              if (ms > 0) {
-                final p = (ms / 1000.0 / totalSeconds).clamp(0.0, 0.99);
-                onProgress(progressOffset + progressScale * p);
+    try {
+      await FFmpegKit.executeWithArgumentsAsync(
+        args,
+        (session) async {
+          final rc = await session.getReturnCode();
+          completer.complete(ReturnCode.isSuccess(rc));
+        },
+        null,
+        totalSeconds > 0 && onProgress != null
+            ? (stats) {
+                final ms = stats.getTime();
+                if (ms > 0) {
+                  final p = (ms / 1000.0 / totalSeconds).clamp(0.0, 0.99);
+                  onProgress(progressOffset + progressScale * p);
+                }
               }
-            }
-          : null,
-    );
+            : null,
+      );
+    } on MissingPluginException {
+      // FFmpegKit native library unavailable (e.g. unsupported emulator).
+      completer.complete(false);
+      return completer.future;
+    }
 
     return completer.future;
   }
