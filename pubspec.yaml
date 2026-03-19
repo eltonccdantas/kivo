@@ -1,7 +1,7 @@
 name: kivo
 description: KIVO – High-efficiency compressor for videos, images, and PDFs.
 publish_to: "none"
-version: 2.2.0+6
+version: 2.2.1+7
 
 environment:
   sdk: ">=3.2.0 <4.0.0"
