@@ -26,7 +26,7 @@ class VideoService {
         onProgress: onProgress, cancellationToken: cancellationToken);
   }
 
-  // ── Mobile (ffmpeg_kit_flutter_full_gpl) ─────────────────────────────────
+  // ── Mobile (ffmpeg_kit_flutter_new) ──────────────────────────────────────
 
   Future<CompressionResult> _compressMobile(
     File input,
@@ -48,19 +48,43 @@ class VideoService {
       throw const CompressionCancelledException();
     }
 
-    // Try HEVC first
+    // The default ffmpeg_kit_flutter_new build for Android does not bundle
+    // libx264/libx265 (software codecs). Use the OS hardware encoders instead:
+    // h264_mediacodec / hevc_mediacodec are available on all Android 5+ devices.
+    // On iOS the framework includes the software codecs, so keep those.
+    final isAndroid = Platform.isAndroid;
+
+    // For hardware encoding we need a target bitrate.
+    // Aim for ~60 % of the estimated original bitrate; clamp to a safe range.
+    final targetKbps = isAndroid
+        ? totalSeconds > 0
+            ? ((originalBytes * 8 / totalSeconds / 1000) * 0.6)
+                  .clamp(400.0, 8000.0)
+                  .round()
+            : 2000
+        : 0; // unused on iOS — CRF controls quality there
+
     final hevcTmp =
         '${outputPath.substring(0, outputPath.lastIndexOf('.'))}_hevc_tmp.mp4';
 
+    final hevcArgs = isAndroid
+        ? [
+            '-y', '-i', input.path,
+            '-c:v', 'hevc_mediacodec', '-b:v', '${targetKbps}k',
+            '-c:a', 'aac', '-b:a', '128k',
+            hevcTmp,
+          ]
+        : [
+            '-y', '-i', input.path,
+            '-c:v', 'libx265', '-preset', 'medium', '-crf', '27',
+            '-tag:v', 'hvc1',
+            '-c:a', 'aac', '-b:a', '128k',
+            '-movflags', '+faststart',
+            hevcTmp,
+          ];
+
     final hevcOk = await _runMobileFFmpeg(
-      [
-        '-y', '-i', input.path,
-        '-c:v', 'libx265', '-preset', 'medium', '-crf', '27',
-        '-tag:v', 'hvc1',
-        '-c:a', 'aac', '-b:a', '128k',
-        '-movflags', '+faststart',
-        hevcTmp,
-      ],
+      hevcArgs,
       totalSeconds: totalSeconds,
       progressOffset: 0.05,
       progressScale: 0.85,
@@ -83,21 +107,32 @@ class VideoService {
           originalBytes: originalBytes,
           compressedBytes: hevcSize,
           improved: true,
-          note: 'Re-encoded with HEVC/H.265 (CRF 27, preset medium).',
+          note: isAndroid
+              ? 'Re-encoded with HEVC (hardware, $targetKbps kbps).'
+              : 'Re-encoded with HEVC/H.265 (CRF 27, preset medium).',
         );
       }
       try { await File(hevcTmp).delete(); } catch (_) {}
     }
 
     // Fallback: H.264
+    final h264Args = isAndroid
+        ? [
+            '-y', '-i', input.path,
+            '-c:v', 'h264_mediacodec', '-b:v', '${targetKbps}k',
+            '-c:a', 'aac', '-b:a', '128k',
+            outputPath,
+          ]
+        : [
+            '-y', '-i', input.path,
+            '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-tune', 'film',
+            '-c:a', 'aac', '-b:a', '128k',
+            '-movflags', '+faststart',
+            outputPath,
+          ];
+
     final h264Ok = await _runMobileFFmpeg(
-      [
-        '-y', '-i', input.path,
-        '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-tune', 'film',
-        '-c:a', 'aac', '-b:a', '128k',
-        '-movflags', '+faststart',
-        outputPath,
-      ],
+      h264Args,
       totalSeconds: totalSeconds,
       progressOffset: 0.0,
       progressScale: 1.0,
@@ -120,7 +155,9 @@ class VideoService {
         compressedBytes: improved ? h264Size : originalBytes,
         improved: improved,
         note: improved
-            ? 'Re-encoded with H.264 (CRF 23, preset medium).'
+            ? isAndroid
+                ? 'Re-encoded with H.264 (hardware, $targetKbps kbps).'
+                : 'Re-encoded with H.264 (CRF 23, preset medium).'
             : 'Video already optimized; copied as-is.',
       );
     }
