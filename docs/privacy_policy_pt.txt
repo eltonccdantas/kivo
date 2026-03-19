@@ -1,0 +1,124 @@
+KIVO – Política de Privacidade
+==============================
+Última atualização: 19 de março de 2026
+
+KIVO é um aplicativo gratuito e offline de compressão de arquivos — imagens,
+vídeos e documentos PDF. Esta política explica como o KIVO trata (ou, mais
+precisamente, não trata) os seus dados.
+
+
+1. Resumo
+---------
+O KIVO não coleta, armazena, transmite ou compartilha nenhum dado pessoal —
+jamais. Tudo acontece no seu dispositivo, sem conexão com servidores externos.
+
+
+2. Coleta de Dados
+------------------
+O KIVO não coleta nenhum dado pessoal. Não há análises de uso, telemetria,
+relatórios de erros, SDKs de publicidade nem rastreamento de qualquer natureza
+no aplicativo.
+
+Não sabemos quem você é, quais arquivos você comprime nem como você usa o app.
+
+
+3. Processamento de Arquivos
+-----------------------------
+Toda a compressão é realizada inteiramente no seu dispositivo, sem qualquer
+processamento externo. Seus arquivos nunca são enviados, transmitidos ou
+compartilhados com servidores ou terceiros.
+
+O KIVO não exige conexão com a internet para funcionar. Nenhuma requisição de
+rede é feita durante o uso normal do aplicativo.
+
+O arquivo original nunca é modificado ou excluído. O KIVO lê o arquivo de
+origem, cria uma cópia comprimida no local que você escolher e nada mais.
+
+
+4. Permissões
+-------------
+O KIVO solicita apenas as permissões estritamente necessárias para realizar a
+compressão:
+
+  Android
+  - READ_MEDIA_IMAGES: permite selecionar arquivos de imagem.
+  - READ_MEDIA_VIDEO:  permite selecionar arquivos de vídeo.
+  - READ_EXTERNAL_STORAGE (Android 12 e anteriores): permite a seleção de
+    arquivos em versões mais antigas do Android.
+  - WRITE_EXTERNAL_STORAGE (Android 9 e anteriores): permite salvar o arquivo
+    comprimido em versões mais antigas do Android.
+
+  iOS / iPadOS
+  - O acesso a arquivos é fornecido pelo seletor de arquivos do sistema. Não
+    é solicitado acesso amplo à biblioteca de fotos ou ao armazenamento.
+
+  macOS / Windows / Linux
+  - O acesso ao sistema de arquivos é utilizado apenas para ler o arquivo que
+    você selecionar via seletor de arquivos do sistema e para gravar o arquivo
+    de saída no local que você escolher.
+
+Nenhuma permissão é utilizada para finalidade diferente das descritas acima.
+
+
+5. Privacidade de Crianças
+--------------------------
+O KIVO não coleta dados de ninguém, incluindo crianças menores de 13 anos (ou
+a idade de consentimento digital aplicável na sua jurisdição). O aplicativo
+não contém funcionalidades direcionadas a crianças que exijam tratamento
+especial de dados conforme legislações como o ECA, LGPD, COPPA ou GDPR-K.
+
+
+6. Serviços de Terceiros
+------------------------
+O KIVO não se integra a nenhum serviço de terceiros, plataformas de análise,
+redes de publicidade, SDKs de redes sociais ou provedores de armazenamento em
+nuvem.
+
+O aplicativo utiliza apenas bibliotecas de código aberto para compressão
+(FFmpeg, flutter_image_compress, iText/pdf) que operam inteiramente no
+dispositivo e não fazem conexões externas.
+
+
+7. Segurança dos Dados
+----------------------
+Como o KIVO nunca transmite nem armazena seus dados fora do seu dispositivo, o
+risco de vazamento de dados originado pelo KIVO é zero. Seus arquivos
+permanecem sob seu total controle a qualquer momento.
+
+
+8. Seus Direitos
+----------------
+Como o KIVO não coleta nenhum dado pessoal, não há dados armazenados para
+acessar, corrigir, exportar ou excluir. Todos os arquivos processados
+permanecem no seu dispositivo e podem ser gerenciados pelas ferramentas
+padrão do seu sistema operacional.
+
+Caso você resida no Brasil, seus direitos são garantidos pela Lei Geral de
+Proteção de Dados (LGPD – Lei nº 13.709/2018). Em razão da ausência total
+de coleta de dados, nenhuma das obrigações previstas na LGPD se aplica ao
+KIVO, pois não há operação de tratamento de dados pessoais.
+
+
+9. Alterações nesta Política
+-----------------------------
+Caso esta política de privacidade seja atualizada no futuro, a nova versão
+será publicada juntamente com o lançamento correspondente do aplicativo. A
+data de "Última atualização" no topo deste documento refletirá a data da
+revisão.
+
+O uso continuado do KIVO após uma atualização da política implica a aceitação
+dos novos termos.
+
+
+10. Contato
+-----------
+Em caso de dúvidas ou preocupações sobre esta política de privacidade, entre
+em contato:
+
+  Desenvolvedor: Elton Dantas
+  Site:          https://eltonccdantas.com
+
+
+---
+O KIVO é um software gratuito. Ele existe para ajudar as pessoas a proteger
+sua privacidade mantendo seus arquivos em seus próprios dispositivos.

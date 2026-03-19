@@ -1,0 +1,114 @@
+KIVO – Privacy Policy
+=====================
+Last updated: March 19, 2026
+
+KIVO is a free, offline file compression tool for images, videos, and PDF
+documents. This policy explains how KIVO handles (or, more precisely, does
+not handle) your data.
+
+
+1. Summary
+----------
+KIVO does not collect, store, transmit, or share any personal data — ever.
+Everything happens on your device, offline.
+
+
+2. Data Collection
+------------------
+KIVO collects no personal data whatsoever. There are no analytics, no
+telemetry, no crash reporting, no advertising SDKs, and no tracking of any
+kind embedded in the app.
+
+We do not know who you are, what files you compress, or how you use the app.
+
+
+3. File Processing
+------------------
+All compression is performed entirely on your device using local processing
+only. Your files are never uploaded, transmitted, or shared with any server
+or third party.
+
+KIVO does not require an internet connection to function. No network requests
+are made during normal operation.
+
+The original file is never modified or deleted. KIVO reads the source file,
+creates a compressed copy in the location you choose, and does nothing else.
+
+
+4. Permissions
+--------------
+KIVO requests only the permissions strictly necessary to perform compression:
+
+  Android
+  - READ_MEDIA_IMAGES: allows you to select image files.
+  - READ_MEDIA_VIDEO:  allows you to select video files.
+  - READ_EXTERNAL_STORAGE (Android 12 and below): allows file selection on
+    older Android versions.
+  - WRITE_EXTERNAL_STORAGE (Android 9 and below): allows saving the
+    compressed file on older Android versions.
+
+  iOS / iPadOS
+  - File access is provided through the system file picker. No broad access
+    to your photo library or storage is requested.
+
+  macOS / Windows / Linux
+  - File system access is used only to read the file you select via the
+    system file picker and to write the output file to the location you
+    choose.
+
+No permission is used for any purpose beyond what is described above.
+
+
+5. Children's Privacy
+---------------------
+KIVO does not collect data from anyone, including children under the age of
+13 (or the applicable age of digital consent in your jurisdiction). The app
+contains no features that target or are directed at children in a manner that
+would require special data handling under laws such as COPPA or GDPR-K.
+
+
+6. Third-Party Services
+-----------------------
+KIVO does not integrate with any third-party services, analytics platforms,
+advertising networks, social media SDKs, or cloud storage providers.
+
+The app relies solely on open-source libraries for compression (FFmpeg,
+flutter_image_compress, iText/pdf) that operate entirely on-device and make
+no external connections.
+
+
+7. Data Security
+----------------
+Because KIVO never transmits or stores your data outside your device, the
+risk of a data breach originating from KIVO is zero. Your files remain under
+your full control at all times.
+
+
+8. Your Rights
+--------------
+Since KIVO does not collect any personal data, there is no stored data to
+access, correct, export, or delete. All processed files remain on your device
+and can be managed using your operating system's standard tools.
+
+
+9. Changes to This Policy
+--------------------------
+If this privacy policy is updated in the future, the new version will be
+published alongside the corresponding app release. The "Last updated" date
+at the top of this document will reflect the revision date.
+
+Continued use of KIVO after a policy update constitutes acceptance of the
+updated terms.
+
+
+10. Contact
+-----------
+If you have questions or concerns about this privacy policy, please contact:
+
+  Developer: Elton Dantas
+  Website:   https://eltonccdantas.com
+
+
+---
+KIVO is free software. It exists to help people protect their privacy by
+keeping their files on their own devices.
