@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'models/models.dart';
 import 'services/compression_service.dart';
+import 'utils/cancellation_token.dart';
 import 'utils/file_utils.dart';
 import 'widgets/progress_dialog.dart';
 
@@ -132,12 +133,14 @@ class _HomePageState extends State<HomePage> {
 
     final progress = ValueNotifier<double>(0.0);
     final status = ValueNotifier<String>('Starting…');
+    final token = CancellationToken();
 
     if (mounted) {
       ProgressDialog.show(
         context,
         progress: progress,
         statusMessage: status,
+        onCancelRequested: token.cancel,
       );
     }
 
@@ -152,6 +155,7 @@ class _HomePageState extends State<HomePage> {
           status.value =
               '${_statusLabelFor(_selectedKind)} ${(p * 100).toStringAsFixed(0)}%';
         },
+        cancellationToken: token,
       );
 
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
@@ -184,6 +188,13 @@ class _HomePageState extends State<HomePage> {
       } else {
         setState(() => _lastResult = result);
         if (mounted) _showResultSnackBar(result);
+      }
+    } on CompressionCancelledException {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Compression cancelled.')),
+        );
       }
     } catch (e) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();

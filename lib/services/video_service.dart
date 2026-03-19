@@ -9,17 +9,21 @@ import 'package:flutter/services.dart';
 
 import '../models/models.dart';
 import '../utils/binary_extractor.dart';
+import '../utils/cancellation_token.dart';
 
 class VideoService {
   Future<CompressionResult> compress(
     File input,
     String outputPath, {
     void Function(double)? onProgress,
+    CancellationToken? cancellationToken,
   }) async {
     if (Platform.isAndroid || Platform.isIOS) {
-      return _compressMobile(input, outputPath, onProgress: onProgress);
+      return _compressMobile(input, outputPath,
+          onProgress: onProgress, cancellationToken: cancellationToken);
     }
-    return _compressDesktop(input, outputPath, onProgress: onProgress);
+    return _compressDesktop(input, outputPath,
+        onProgress: onProgress, cancellationToken: cancellationToken);
   }
 
   // ── Mobile (ffmpeg_kit_flutter_full_gpl) ─────────────────────────────────
@@ -28,17 +32,21 @@ class VideoService {
     File input,
     String outputPath, {
     void Function(double)? onProgress,
+    CancellationToken? cancellationToken,
   }) async {
     final originalBytes = await input.length();
     onProgress?.call(0.02);
 
-    // Probe duration for progress reporting
     double totalSeconds = 0;
     try {
       final session = await FFprobeKit.getMediaInformation(input.path);
       final dur = session.getMediaInformation()?.getDuration();
       if (dur != null) totalSeconds = double.tryParse(dur) ?? 0;
     } catch (_) {}
+
+    if (cancellationToken?.isCancelled == true) {
+      throw const CompressionCancelledException();
+    }
 
     // Try HEVC first
     final hevcTmp =
@@ -57,7 +65,13 @@ class VideoService {
       progressOffset: 0.05,
       progressScale: 0.85,
       onProgress: onProgress,
+      cancellationToken: cancellationToken,
     );
+
+    if (cancellationToken?.isCancelled == true) {
+      try { await File(hevcTmp).delete(); } catch (_) {}
+      throw const CompressionCancelledException();
+    }
 
     if (hevcOk && File(hevcTmp).existsSync()) {
       final hevcSize = await File(hevcTmp).length();
@@ -88,7 +102,12 @@ class VideoService {
       progressOffset: 0.0,
       progressScale: 1.0,
       onProgress: onProgress,
+      cancellationToken: cancellationToken,
     );
+
+    if (cancellationToken?.isCancelled == true) {
+      throw const CompressionCancelledException();
+    }
 
     if (h264Ok && File(outputPath).existsSync()) {
       final h264Size = await File(outputPath).length();
@@ -123,6 +142,7 @@ class VideoService {
     double progressOffset = 0,
     double progressScale = 1,
     void Function(double)? onProgress,
+    CancellationToken? cancellationToken,
   }) async {
     final completer = Completer<bool>();
 
@@ -145,9 +165,21 @@ class VideoService {
             : null,
       );
     } on MissingPluginException {
-      // FFmpegKit native library unavailable (e.g. unsupported emulator).
       completer.complete(false);
       return completer.future;
+    }
+
+    // Wire up cancellation: poll until the session finishes or is cancelled.
+    if (cancellationToken != null) {
+      Future.doWhile(() async {
+        if (completer.isCompleted) return false;
+        if (cancellationToken.isCancelled) {
+          try { await FFmpegKit.cancel(); } catch (_) {}
+          return false;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        return true;
+      });
     }
 
     return completer.future;
@@ -159,12 +191,17 @@ class VideoService {
     File input,
     String outputPath, {
     void Function(double)? onProgress,
+    CancellationToken? cancellationToken,
   }) async {
     final originalBytes = await input.length();
     onProgress?.call(0.02);
 
     final ffmpeg = await BinaryExtractor.ffmpegPath();
     final totalSeconds = await _probeDuration(ffmpeg, input.path);
+
+    if (cancellationToken?.isCancelled == true) {
+      throw const CompressionCancelledException();
+    }
 
     // Try HEVC first; fall back to H.264 if no meaningful gain
     final hevcTmp =
@@ -184,7 +221,13 @@ class VideoService {
       progressOffset: 0.05,
       progressScale: 0.85,
       onProgress: onProgress,
+      cancellationToken: cancellationToken,
     );
+
+    if (cancellationToken?.isCancelled == true) {
+      try { await File(hevcTmp).delete(); } catch (_) {}
+      throw const CompressionCancelledException();
+    }
 
     if (hevcOk && await File(hevcTmp).exists()) {
       final hevcSize = await File(hevcTmp).length();
@@ -216,7 +259,12 @@ class VideoService {
       progressOffset: 0.0,
       progressScale: 1.0,
       onProgress: onProgress,
+      cancellationToken: cancellationToken,
     );
+
+    if (cancellationToken?.isCancelled == true) {
+      throw const CompressionCancelledException();
+    }
 
     if (await File(outputPath).exists()) {
       final h264Size = await File(outputPath).length();
@@ -271,8 +319,21 @@ class VideoService {
     double progressOffset = 0,
     double progressScale = 1,
     void Function(double)? onProgress,
+    CancellationToken? cancellationToken,
   }) async {
     final process = await Process.start(ffmpegPath, ['-y', ...args]);
+
+    // Kill the process if cancelled while it's running.
+    if (cancellationToken != null) {
+      Future.doWhile(() async {
+        if (cancellationToken.isCancelled) {
+          process.kill();
+          return false;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        return true;
+      });
+    }
 
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))

@@ -6,12 +6,14 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart' as pdf_lib;
 import 'package:image/image.dart' as img;
 import '../models/models.dart';
+import '../utils/cancellation_token.dart';
 
 class PdfService {
   Future<CompressionResult> compress(
     File input,
     String outputPath, {
     void Function(double)? onProgress,
+    CancellationToken? cancellationToken,
   }) async {
     onProgress?.call(0.05);
     final originalBytes = await input.length();
@@ -24,6 +26,9 @@ class PdfService {
     // Quality 65 is visually good and produces meaningful reductions for most
     // PDFs. Quality 45 is a safety net for PDFs with already-compressed images.
     for (final quality in [65, 45]) {
+      if (cancellationToken?.isCancelled == true) {
+        throw const CompressionCancelledException();
+      }
       final result = await _rasterize(
         input: input,
         inputBytes: inputBytes,
@@ -32,6 +37,7 @@ class PdfService {
         dpi: dpi,
         jpegQuality: quality,
         onProgress: onProgress,
+        cancellationToken: cancellationToken,
       );
       if (result != null) return result;
     }
@@ -58,11 +64,16 @@ class PdfService {
     required double dpi,
     required int jpegQuality,
     void Function(double)? onProgress,
+    CancellationToken? cancellationToken,
   }) async {
     final doc = pw.Document();
     int pageIndex = 0;
 
     await for (final page in Printing.raster(inputBytes, dpi: dpi)) {
+      if (cancellationToken?.isCancelled == true) {
+        throw const CompressionCancelledException();
+      }
+
       final uiImage = await page.toImage();
       final byteData =
           await uiImage.toByteData(format: ui.ImageByteFormat.png);

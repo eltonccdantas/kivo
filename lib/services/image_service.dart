@@ -1,21 +1,31 @@
 import 'dart:io';
 import 'package:image/image.dart' as img;
 import '../models/models.dart';
+import '../utils/cancellation_token.dart';
 
 class ImageService {
   Future<CompressionResult> compress(
     File input,
     String outputPath, {
     void Function(double)? onProgress,
-    int quality = 72, // more aggressive than 82 to ensure real gains
+    int quality = 72,
+    CancellationToken? cancellationToken,
   }) async {
     onProgress?.call(0.1);
     final originalBytes = await input.length();
     final bytes = await input.readAsBytes();
 
+    if (cancellationToken?.isCancelled == true) {
+      throw const CompressionCancelledException();
+    }
+
     onProgress?.call(0.25);
     final decoded = img.decodeImage(bytes);
     if (decoded == null) throw Exception('Could not decode image.');
+
+    if (cancellationToken?.isCancelled == true) {
+      throw const CompressionCancelledException();
+    }
 
     onProgress?.call(0.5);
 
