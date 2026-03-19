@@ -39,7 +39,9 @@ android {
 
     defaultConfig {
         applicationId = "com.example.kivo"
-        minSdk = flutter.minSdkVersion
+        // Minimum 21 required for MediaCodec hardware video encoding (hevc_mediacodec / h264_mediacodec)
+        // and for full flutter_image_compress HEIC support.
+        minSdk = 21
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

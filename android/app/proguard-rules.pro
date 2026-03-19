@@ -1,22 +1,31 @@
-# Flutter
+# Flutter engine
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
 # file_picker
 -keep class com.mr.flutter.plugin.filepicker.** { *; }
 
-# ffmpeg_kit
+# ffmpeg_kit_flutter_new (com.antonkarpenko repackage)
+-keep class com.antonkarpenko.ffmpegkit.** { *; }
+# Also keep the original arthenica package used internally by the native lib
 -keep class com.arthenica.ffmpegkit.** { *; }
+-dontwarn com.arthenica.ffmpegkit.**
 
-# permission_handler (removed from app but kept in case transitive dep uses it)
--keep class com.baseflow.permissionhandler.** { *; }
+# flutter_image_compress
+-keep class com.fluttercandies.flutter_image_compress.** { *; }
 
 # printing / pdf
--keep class com.example.printing.** { *; }
+-keep class net.nfet.flutter.printing.** { *; }
+
+# package_info_plus
+-keep class dev.fluttercommunity.plus.packageinfo.** { *; }
+
+# path_provider
+-keep class io.flutter.plugins.pathprovider.** { *; }
 
 # Keep all Flutter plugin registrants
 -keep class * extends io.flutter.plugin.common.PluginRegistry { *; }
 -keep class * implements io.flutter.plugin.common.PluginRegistry$PluginRegistrantCallback { *; }
 
-# Flutter Play Store deferred components — not used by this app, suppress missing-class errors
+# Flutter Play Store deferred components — not used by this app
 -dontwarn com.google.android.play.core.**

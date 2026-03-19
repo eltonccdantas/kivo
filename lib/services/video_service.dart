@@ -67,17 +67,23 @@ class VideoService {
     final hevcTmp =
         '${outputPath.substring(0, outputPath.lastIndexOf('.'))}_hevc_tmp.mp4';
 
+    // Hardware encoders — no bundled codec libraries needed.
+    // -pix_fmt yuv420p: converts to the pixel format all hardware encoders accept.
+    // Android uses MediaCodec; iOS uses VideoToolbox (both are OS-native APIs).
     final hevcArgs = isAndroid
         ? [
             '-y', '-i', input.path,
             '-c:v', 'hevc_mediacodec', '-b:v', '${targetKbps}k',
+            '-pix_fmt', 'yuv420p',
             '-c:a', 'aac', '-b:a', '128k',
             hevcTmp,
           ]
         : [
+            // iOS: VideoToolbox HEVC hardware encoder (iOS 11+, all modern iPhones).
             '-y', '-i', input.path,
-            '-c:v', 'libx265', '-preset', 'medium', '-crf', '27',
+            '-c:v', 'hevc_videotoolbox', '-b:v', '${targetKbps}k',
             '-tag:v', 'hvc1',
+            '-pix_fmt', 'yuv420p',
             '-c:a', 'aac', '-b:a', '128k',
             '-movflags', '+faststart',
             hevcTmp,
@@ -108,24 +114,27 @@ class VideoService {
           compressedBytes: hevcSize,
           improved: true,
           note: isAndroid
-              ? 'Re-encoded with HEVC (hardware, $targetKbps kbps).'
-              : 'Re-encoded with HEVC/H.265 (CRF 27, preset medium).',
+              ? 'Re-encoded with HEVC (MediaCodec, $targetKbps kbps).'
+              : 'Re-encoded with HEVC (VideoToolbox, $targetKbps kbps).',
         );
       }
       try { await File(hevcTmp).delete(); } catch (_) {}
     }
 
-    // Fallback: H.264
+    // Fallback: H.264 hardware encoder (even more widely supported than HEVC).
     final h264Args = isAndroid
         ? [
             '-y', '-i', input.path,
             '-c:v', 'h264_mediacodec', '-b:v', '${targetKbps}k',
+            '-pix_fmt', 'yuv420p',
             '-c:a', 'aac', '-b:a', '128k',
             outputPath,
           ]
         : [
+            // iOS: VideoToolbox H.264 hardware encoder (universally available).
             '-y', '-i', input.path,
-            '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-tune', 'film',
+            '-c:v', 'h264_videotoolbox', '-b:v', '${targetKbps}k',
+            '-pix_fmt', 'yuv420p',
             '-c:a', 'aac', '-b:a', '128k',
             '-movflags', '+faststart',
             outputPath,
@@ -156,8 +165,8 @@ class VideoService {
         improved: improved,
         note: improved
             ? isAndroid
-                ? 'Re-encoded with H.264 (hardware, $targetKbps kbps).'
-                : 'Re-encoded with H.264 (CRF 23, preset medium).'
+                ? 'Re-encoded with H.264 (MediaCodec, $targetKbps kbps).'
+                : 'Re-encoded with H.264 (VideoToolbox, $targetKbps kbps).'
             : 'Video already optimized; copied as-is.',
       );
     }
