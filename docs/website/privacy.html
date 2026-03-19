@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy – KIVO</title>
+  <meta name="description" content="KIVO Privacy Policy. KIVO collects no personal data. All file processing happens locally on your device." />
+  <meta name="author" content="Elton Dantas" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <style>
+    /* ── Privacy page specific ── */
+    .privacy-hero {
+      padding: 80px 0 48px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .privacy-hero .glow-blob {
+      width: 400px; height: 400px;
+      background: rgba(124, 111, 247, 0.12);
+      top: -150px; right: -100px;
+    }
+
+    .privacy-hero-inner {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .privacy-shield {
+      font-size: 48px;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+
+    .privacy-hero h1 {
+      font-size: clamp(28px, 5vw, 46px);
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+
+    .privacy-hero .meta {
+      font-size: 13px;
+      color: var(--text-faint);
+    }
+
+    .privacy-hero .meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: 20px;
+    }
+
+    /* ── Summary banner ── */
+    .privacy-summary {
+      background: var(--green-glow);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin-bottom: 40px;
+    }
+
+    .privacy-summary h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .summary-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      list-style: none;
+    }
+
+    .summary-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .summary-list li::before {
+      content: '✓';
+      color: var(--green);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ── Content ── */
+    .privacy-content {
+      padding: 48px 0 96px;
+    }
+
+    .privacy-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+
+    /* Sticky TOC */
+    .privacy-toc {
+      position: sticky;
+      top: 84px;
+    }
+
+    .toc-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-bottom: 14px;
+    }
+
+    .toc-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .toc-list a {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 6px 10px;
+      border-radius: 8px;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .toc-list a:hover {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .toc-list a.active {
+      background: var(--primary-glow);
+      color: var(--primary);
+    }
+
+    /* Article */
+    .privacy-article section {
+      padding: 0;
+      margin-bottom: 48px;
+    }
+
+    .privacy-article section:last-child { margin-bottom: 0; }
+
+    .privacy-article h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-top: 8px;
+    }
+
+    .privacy-article h2 .section-num {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      background: var(--primary-glow);
+      border: 1px solid rgba(124,111,247,0.2);
+      width: 26px; height: 26px;
+      border-radius: 7px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .privacy-article p {
+      font-size: 15px;
+      color: var(--text-muted);
+      line-height: 1.75;
+      margin-bottom: 14px;
+    }
+
+    .privacy-article p:last-child { margin-bottom: 0; }
+
+    .privacy-article strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .privacy-article ul {
+      list-style: none;
+      margin: 12px 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .privacy-article ul li {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.65;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      gap: 12px;
+    }
+
+    .privacy-article ul li::before {
+      content: '→';
+      color: var(--primary);
+      flex-shrink: 0;
+      margin-top: 1px;
+      font-weight: 700;
+    }
+
+    .privacy-article a {
+      color: var(--primary);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    /* Contact card */
+    .contact-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .contact-card .contact-icon { font-size: 28px; }
+
+    .contact-card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .contact-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0 !important;
+    }
+
+    .contact-card a {
+      color: var(--primary);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    /* Divider */
+    .privacy-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 40px 0;
+    }
+
+    /* Language toggle */
+    .lang-toggle {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .lang-btn {
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .lang-btn.active, .lang-btn:hover {
+      background: var(--primary-glow);
+      border-color: rgba(124,111,247,0.3);
+      color: var(--primary);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .privacy-layout { grid-template-columns: 1fr; }
+      .privacy-toc { position: static; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation ── -->
+  <nav class="nav">
+    <div class="container">
+      <div class="nav-inner">
+        <a href="index.html" class="nav-logo">
+          <span class="logo-dot"></span>
+          KIVO
+        </a>
+
+        <ul class="nav-links">
+          <li><a href="index.html#features">Features</a></li>
+          <li><a href="index.html#story">About</a></li>
+          <li><a href="index.html#formats">Formats</a></li>
+          <li><a href="index.html#download">Download</a></li>
+          <li><a href="privacy.html" class="nav-cta">Privacy Policy</a></li>
+        </ul>
+
+        <button class="nav-menu-btn" aria-label="Menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Hero ── -->
+  <div class="privacy-hero">
+    <div class="glow-blob"></div>
+    <div class="container">
+      <div class="privacy-hero-inner">
+        <div class="privacy-shield">🛡️</div>
+        <div>
+          <h1>Privacy Policy</h1>
+          <div class="meta">
+            <span>📅 Last updated: March 19, 2026</span>
+            <span>🔖 App: KIVO</span>
+          </div>
+          <div class="lang-toggle">
+            <button class="lang-btn active" onclick="showLang('en', this)">English</button>
+            <button class="lang-btn" onclick="showLang('pt', this)">Português</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Content ── -->
+  <div class="privacy-content">
+    <div class="container">
+
+      <!-- Summary banner -->
+      <div class="privacy-summary">
+        <h2>🟢 The short version</h2>
+        <ul class="summary-list">
+          <li>KIVO collects zero personal data</li>
+          <li>Your files never leave your device</li>
+          <li>No internet connection required</li>
+          <li>No analytics, no tracking, no ads</li>
+          <li>No account or sign-up required</li>
+          <li>100% free, forever</li>
+        </ul>
+      </div>
+
+      <!-- ── ENGLISH ── -->
+      <div id="lang-en">
+        <div class="privacy-layout">
+
+          <!-- TOC -->
+          <aside class="privacy-toc">
+            <p class="toc-title">Contents</p>
+            <ul class="toc-list">
+              <li><a href="#en-collection">1. Data Collection</a></li>
+              <li><a href="#en-processing">2. File Processing</a></li>
+              <li><a href="#en-permissions">3. Permissions</a></li>
+              <li><a href="#en-children">4. Children's Privacy</a></li>
+              <li><a href="#en-third-party">5. Third-Party Services</a></li>
+              <li><a href="#en-security">6. Data Security</a></li>
+              <li><a href="#en-rights">7. Your Rights</a></li>
+              <li><a href="#en-changes">8. Policy Changes</a></li>
+              <li><a href="#en-contact">9. Contact</a></li>
+            </ul>
+          </aside>
+
+          <!-- Article -->
+          <article class="privacy-article">
+
+            <section id="en-collection">
+              <h2><span class="section-num">1</span> Data Collection</h2>
+              <p>
+                KIVO <strong>does not collect, store, transmit, or share any personal data — ever.</strong>
+                There are no analytics SDKs, no telemetry, no crash reporting, no advertising frameworks,
+                and no tracking of any kind embedded in the application.
+              </p>
+              <p>
+                We do not know who you are, what files you compress, or how you use the app.
+                This is intentional and by design.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="en-processing">
+              <h2><span class="section-num">2</span> File Processing</h2>
+              <p>
+                All compression is performed <strong>entirely on your device</strong> using local
+                processing only. Your files are never uploaded, transmitted over a network, or
+                shared with any server or third party.
+              </p>
+              <p>
+                KIVO does not require an internet connection to function. No network requests
+                are made during normal operation.
+              </p>
+              <p>
+                The original file is <strong>never modified or deleted</strong>. KIVO reads the
+                source file you select, creates a compressed copy in the location you choose,
+                and does nothing else with it.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="en-permissions">
+              <h2><span class="section-num">3</span> Permissions</h2>
+              <p>KIVO requests only the permissions strictly necessary to perform compression:</p>
+
+              <ul>
+                <li><strong>Android — READ_MEDIA_IMAGES:</strong> Allows you to select image files for compression. Used exclusively to read the file you explicitly choose.</li>
+                <li><strong>Android — READ_MEDIA_VIDEO:</strong> Allows you to select video files. Used only for the file you explicitly choose.</li>
+                <li><strong>Android ≤ 12 — READ_EXTERNAL_STORAGE:</strong> Provides file selection on older Android versions where granular media permissions are not yet available.</li>
+                <li><strong>Android ≤ 9 — WRITE_EXTERNAL_STORAGE:</strong> Allows saving the compressed file on Android 9 and below.</li>
+                <li><strong>iOS / iPadOS:</strong> File access is provided through the system file picker. No broad access to your photo library or full storage is requested.</li>
+                <li><strong>macOS / Windows / Linux:</strong> File system access is used only to read the file you select and write the output to the location you choose.</li>
+              </ul>
+
+              <p>No permission is used for any purpose beyond what is described above.</p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="en-children">
+              <h2><span class="section-num">4</span> Children's Privacy</h2>
+              <p>
+                KIVO does not collect data from anyone, including children under the age of 13
+                (or the applicable age of digital consent in your jurisdiction). The app contains
+                no features that target children and is safe for all ages.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="en-third-party">
+              <h2><span class="section-num">5</span> Third-Party Services</h2>
+              <p>
+                KIVO <strong>does not integrate with any third-party services</strong>, analytics
+                platforms, advertising networks, social media SDKs, or cloud storage providers.
+              </p>
+              <p>
+                The app relies solely on open-source libraries for compression (FFmpeg,
+                flutter_image_compress, iText/pdf) that operate entirely on-device and make
+                no external network connections.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="en-security">
+              <h2><span class="section-num">6</span> Data Security</h2>
+              <p>
+                Because KIVO never transmits or stores your data outside your device, the risk of
+                a data breach originating from KIVO is zero. Your files remain under your full
+                control at all times and are only accessible by you through your device's normal
+                file management tools.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="en-rights">
+              <h2><span class="section-num">7</span> Your Rights</h2>
+              <p>
+                Since KIVO does not collect any personal data, there is no stored data to access,
+                correct, export, or delete. All processed files remain on your device and can be
+                managed using your operating system's standard tools.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="en-changes">
+              <h2><span class="section-num">8</span> Policy Changes</h2>
+              <p>
+                If this privacy policy is updated in the future, the new version will be published
+                alongside the corresponding app release and reflected on this page. The
+                "Last updated" date at the top will reflect the revision date.
+              </p>
+              <p>
+                Continued use of KIVO after a policy update constitutes acceptance of the
+                updated terms.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="en-contact">
+              <h2><span class="section-num">9</span> Contact</h2>
+              <p>If you have questions or concerns about this privacy policy, please reach out:</p>
+              <div class="contact-card">
+                <div class="contact-icon">👤</div>
+                <div>
+                  <h3>Elton Dantas</h3>
+                  <p>Developer · <a href="https://eltondantas.com" target="_blank" rel="noopener">eltondantas.com</a></p>
+                </div>
+              </div>
+            </section>
+
+          </article>
+        </div>
+      </div>
+
+      <!-- ── PORTUGUÊS ── -->
+      <div id="lang-pt" style="display:none;">
+        <div class="privacy-layout">
+
+          <!-- TOC -->
+          <aside class="privacy-toc">
+            <p class="toc-title">Conteúdo</p>
+            <ul class="toc-list">
+              <li><a href="#pt-coleta">1. Coleta de Dados</a></li>
+              <li><a href="#pt-processamento">2. Processamento</a></li>
+              <li><a href="#pt-permissoes">3. Permissões</a></li>
+              <li><a href="#pt-criancas">4. Crianças</a></li>
+              <li><a href="#pt-terceiros">5. Serviços de Terceiros</a></li>
+              <li><a href="#pt-seguranca">6. Segurança</a></li>
+              <li><a href="#pt-direitos">7. Seus Direitos</a></li>
+              <li><a href="#pt-alteracoes">8. Alterações</a></li>
+              <li><a href="#pt-contato">9. Contato</a></li>
+            </ul>
+          </aside>
+
+          <!-- Article -->
+          <article class="privacy-article">
+
+            <section id="pt-coleta">
+              <h2><span class="section-num">1</span> Coleta de Dados</h2>
+              <p>
+                O KIVO <strong>não coleta, armazena, transmite ou compartilha nenhum dado pessoal — jamais.</strong>
+                Não há SDKs de análise de uso, telemetria, relatório de erros, frameworks de publicidade
+                nem rastreamento de qualquer natureza no aplicativo.
+              </p>
+              <p>
+                Não sabemos quem você é, quais arquivos você comprime nem como você usa o app.
+                Isso é intencional e parte do design do produto.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="pt-processamento">
+              <h2><span class="section-num">2</span> Processamento de Arquivos</h2>
+              <p>
+                Toda a compressão é realizada <strong>inteiramente no seu dispositivo</strong>,
+                sem qualquer processamento externo. Seus arquivos nunca são enviados, transmitidos
+                por rede ou compartilhados com servidores ou terceiros.
+              </p>
+              <p>
+                O KIVO não exige conexão com a internet para funcionar. Nenhuma requisição de rede
+                é feita durante o uso normal do aplicativo.
+              </p>
+              <p>
+                O arquivo original <strong>nunca é modificado ou excluído</strong>. O KIVO lê o
+                arquivo de origem que você selecionar, cria uma cópia comprimida no local que você
+                escolher e nada mais.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="pt-permissoes">
+              <h2><span class="section-num">3</span> Permissões</h2>
+              <p>O KIVO solicita apenas as permissões estritamente necessárias para realizar a compressão:</p>
+
+              <ul>
+                <li><strong>Android — READ_MEDIA_IMAGES:</strong> Permite selecionar arquivos de imagem. Usado exclusivamente para o arquivo que você escolher explicitamente.</li>
+                <li><strong>Android — READ_MEDIA_VIDEO:</strong> Permite selecionar arquivos de vídeo. Usado apenas para o arquivo que você escolher.</li>
+                <li><strong>Android ≤ 12 — READ_EXTERNAL_STORAGE:</strong> Seleção de arquivos em versões mais antigas do Android onde as permissões granulares ainda não estão disponíveis.</li>
+                <li><strong>Android ≤ 9 — WRITE_EXTERNAL_STORAGE:</strong> Permite salvar o arquivo comprimido no Android 9 e anteriores.</li>
+                <li><strong>iOS / iPadOS:</strong> O acesso a arquivos é fornecido pelo seletor de arquivos do sistema. Não é solicitado acesso amplo à biblioteca de fotos nem ao armazenamento.</li>
+                <li><strong>macOS / Windows / Linux:</strong> O acesso ao sistema de arquivos é usado apenas para ler o arquivo selecionado e gravar a saída no local que você escolher.</li>
+              </ul>
+
+              <p>Nenhuma permissão é utilizada para finalidade diferente das descritas acima.</p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="pt-criancas">
+              <h2><span class="section-num">4</span> Privacidade de Crianças</h2>
+              <p>
+                O KIVO não coleta dados de ninguém, incluindo crianças menores de 13 anos (ou
+                a idade de consentimento digital aplicável na sua jurisdição). O aplicativo é
+                seguro para todas as idades e não contém funcionalidades direcionadas a crianças
+                que exijam tratamento especial de dados conforme o ECA, LGPD, COPPA ou GDPR-K.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="pt-terceiros">
+              <h2><span class="section-num">5</span> Serviços de Terceiros</h2>
+              <p>
+                O KIVO <strong>não se integra a nenhum serviço de terceiros</strong>, plataformas
+                de análise, redes de publicidade, SDKs de redes sociais ou provedores de
+                armazenamento em nuvem.
+              </p>
+              <p>
+                O aplicativo utiliza apenas bibliotecas de código aberto para compressão (FFmpeg,
+                flutter_image_compress, iText/pdf) que operam inteiramente no dispositivo e não
+                fazem conexões externas.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="pt-seguranca">
+              <h2><span class="section-num">6</span> Segurança dos Dados</h2>
+              <p>
+                Como o KIVO nunca transmite nem armazena seus dados fora do seu dispositivo, o
+                risco de vazamento de dados originado pelo KIVO é zero. Seus arquivos permanecem
+                sob seu total controle a qualquer momento e são acessíveis apenas por você,
+                através das ferramentas de gerenciamento de arquivos do seu próprio sistema.
+              </p>
+              <p>
+                Caso você resida no Brasil, seus direitos são garantidos pela Lei Geral de Proteção
+                de Dados (<strong>LGPD – Lei nº 13.709/2018</strong>). Em razão da ausência total
+                de coleta de dados, nenhuma das obrigações previstas na LGPD se aplica ao KIVO,
+                pois não há operação de tratamento de dados pessoais.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="pt-direitos">
+              <h2><span class="section-num">7</span> Seus Direitos</h2>
+              <p>
+                Como o KIVO não coleta nenhum dado pessoal, não há dados armazenados para acessar,
+                corrigir, exportar ou excluir. Todos os arquivos processados permanecem no seu
+                dispositivo e podem ser gerenciados pelas ferramentas padrão do seu sistema operacional.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="pt-alteracoes">
+              <h2><span class="section-num">8</span> Alterações nesta Política</h2>
+              <p>
+                Caso esta política de privacidade seja atualizada no futuro, a nova versão será
+                publicada juntamente com o lançamento correspondente do aplicativo e refletida
+                nesta página. A data de "Última atualização" no topo do documento será atualizada.
+              </p>
+              <p>
+                O uso continuado do KIVO após uma atualização da política implica a aceitação
+                dos novos termos.
+              </p>
+            </section>
+
+            <div class="privacy-divider"></div>
+
+            <section id="pt-contato">
+              <h2><span class="section-num">9</span> Contato</h2>
+              <p>Em caso de dúvidas ou preocupações sobre esta política, entre em contato:</p>
+              <div class="contact-card">
+                <div class="contact-icon">👤</div>
+                <div>
+                  <h3>Elton Dantas</h3>
+                  <p>Desenvolvedor · <a href="https://eltondantas.com" target="_blank" rel="noopener">eltondantas.com</a></p>
+                </div>
+              </div>
+            </section>
+
+          </article>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-logo">KIVO</div>
+        <div class="footer-links">
+          <a href="index.html">Home</a>
+          <a href="https://github.com/eltonccdantas/kivo" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://eltondantas.com" target="_blank" rel="noopener">eltondantas.com</a>
+        </div>
+      </div>
+      <div class="footer-copy">
+        &copy; <span id="year">2026</span> Elton Dantas. KIVO is free and open source software.
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    /* ── Language toggle ── */
+    function showLang(lang, btn) {
+      document.getElementById('lang-en').style.display = lang === 'en' ? '' : 'none';
+      document.getElementById('lang-pt').style.display = lang === 'pt' ? '' : 'none';
+      document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    /* ── Active TOC link on scroll ── */
+    (function () {
+      const sections = document.querySelectorAll('.privacy-article section[id]');
+      const links    = document.querySelectorAll('.toc-list a');
+      if (!sections.length) return;
+
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + e.target.id));
+          }
+        });
+      }, { rootMargin: '-20% 0px -70% 0px' });
+
+      sections.forEach(s => observer.observe(s));
+    })();
+  </script>
+</body>
+</html>
