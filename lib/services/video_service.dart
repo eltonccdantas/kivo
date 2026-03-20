@@ -385,17 +385,9 @@ class VideoService {
       );
     }
 
-    // Kill the process if cancelled while it's running.
-    if (cancellationToken != null) {
-      Future.doWhile(() async {
-        if (cancellationToken.isCancelled) {
-          process.kill();
-          return false;
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-        return true;
-      });
-    }
+    // Drain stdout immediately so FFmpeg never blocks on a full pipe buffer.
+    // Errors are swallowed — stdout is unused.
+    process.stdout.drain<void>().catchError((_) {});
 
     // stderr carries FFmpeg progress info; swallow stream errors so a
     // broken pipe or early process exit doesn't produce an unhandled exception.
@@ -419,9 +411,24 @@ class VideoService {
       onError: (_) {}, // ignore stream-level errors (e.g. broken pipe)
     );
 
-    // Drain stdout to avoid the process blocking on a full pipe buffer.
-    // Ignore errors — stdout is unused.
-    await process.stdout.drain<void>().catchError((_) {});
-    return await process.exitCode == 0;
+    // Kill the process if cancelled while it's running.
+    // The loop checks a shared flag so it stops as soon as exitCode resolves,
+    // preventing the doWhile from running forever after the process exits.
+    var processRunning = true;
+    if (cancellationToken != null) {
+      Future.doWhile(() async {
+        if (!processRunning) return false;
+        if (cancellationToken.isCancelled) {
+          try { process.kill(); } catch (_) {}
+          return false;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        return processRunning;
+      }).catchError((_) {});
+    }
+
+    final exitCode = await process.exitCode;
+    processRunning = false;
+    return exitCode == 0;
   }
 }
