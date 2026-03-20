@@ -240,32 +240,97 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width >= 600;
 
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(scheme),
-                  const SizedBox(height: 28),
-                  _buildFileCard(scheme),
-                  const SizedBox(height: 12),
-                  if (_lastResult != null) ...[
-                    _buildResultCard(_lastResult!, scheme),
-                    const SizedBox(height: 12),
+        child: isWide
+            ? _buildWideLayout(scheme)
+            : _buildNarrowLayout(scheme),
+      ),
+    );
+  }
+
+  // Two-column layout for landscape phones and tablets (≥ 600 dp).
+  // Left panel: scrollable file info. Right panel: fixed actions + footer.
+  Widget _buildWideLayout(ColorScheme scheme) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 960),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(28, 24, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(scheme, compact: true),
+                    const SizedBox(height: 20),
+                    _buildFileCard(scheme),
+                    if (_lastResult != null) ...[
+                      const SizedBox(height: 12),
+                      _buildResultCard(_lastResult!, scheme),
+                    ],
                   ],
-                  const Spacer(),
-                  _buildActions(scheme),
-                  const SizedBox(height: 20),
-                  _buildFooter(scheme),
-                  const SizedBox(height: 4),
-                ],
+                ),
               ),
+            ),
+            VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: scheme.onSurface.withValues(alpha: 0.08),
+            ),
+            SizedBox(
+              width: 268,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 28, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Spacer(),
+                    _buildActions(scheme),
+                    const SizedBox(height: 20),
+                    _buildFooter(scheme),
+                    const SizedBox(height: 4),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Single-column layout for portrait phones (< 600 dp).
+  // Scrollable so content is never clipped on small or short screens.
+  Widget _buildNarrowLayout(ColorScheme scheme) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
+          child: IntrinsicHeight(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(scheme),
+                const SizedBox(height: 28),
+                _buildFileCard(scheme),
+                const SizedBox(height: 12),
+                if (_lastResult != null) ...[
+                  _buildResultCard(_lastResult!, scheme),
+                  const SizedBox(height: 12),
+                ],
+                const Spacer(),
+                _buildActions(scheme),
+                const SizedBox(height: 20),
+                _buildFooter(scheme),
+                const SizedBox(height: 4),
+              ],
             ),
           ),
         ),
@@ -273,15 +338,18 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildHeader(ColorScheme scheme) {
+  Widget _buildHeader(ColorScheme scheme, {bool compact = false}) {
+    final logoSize = compact ? 64.0 : 100.0;
+    final titleSize = compact ? 32.0 : 42.0;
+
     return Row(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(compact ? 12 : 16),
           child: Image.asset(
             'assets/images/logo.png',
-            width: 100,
-            height: 100,
+            width: logoSize,
+            height: logoSize,
             fit: BoxFit.contain,
           ),
         ),
@@ -290,10 +358,10 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'KIVO',
                 style: TextStyle(
-                  fontSize: 42,
+                  fontSize: titleSize,
                   fontWeight: FontWeight.w900,
                   color: Colors.white,
                   letterSpacing: -1.5,
