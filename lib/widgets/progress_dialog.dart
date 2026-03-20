@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/eta_calculator.dart';
 
 class ProgressDialog extends StatefulWidget {
   final ValueNotifier<double> progress;
@@ -57,21 +58,8 @@ class _ProgressDialogState extends State<ProgressDialog> {
 
   /// Returns a human-readable ETA string, or empty string when not yet
   /// estimable (too early) or no longer needed (almost done).
-  String _etaText(double progress) {
-    final start = _startTime;
-    if (start == null || progress <= 0.05 || progress >= 0.98) return '';
-
-    final elapsed = DateTime.now().difference(start).inSeconds;
-    if (elapsed < 4) return ''; // avoid wild estimates in the first few seconds
-
-    final totalEstimated = elapsed / progress;
-    final remaining = (totalEstimated * (1 - progress)).round();
-
-    if (remaining <= 5) return 'Almost done…';
-    if (remaining < 60) return '~$remaining s remaining';
-    final mins = (remaining / 60).ceil();
-    return '~$mins min remaining';
-  }
+  String _etaText(double progress) =>
+      calculateEta(progress, _startTime, DateTime.now());
 
   Future<void> _confirmCancel(BuildContext context) async {
     final confirmed = await showDialog<bool>(
