@@ -122,14 +122,29 @@ class _ProgressDialogState extends State<ProgressDialog> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final mq = MediaQuery.of(context);
+    // Compact mode when the available height is small (landscape phones).
+    final compact = mq.size.height < 500;
+    final circleSize = compact ? 72.0 : 100.0;
+    final circleFont = compact ? 17.0 : 22.0;
+    final innerPadding = compact
+        ? const EdgeInsets.fromLTRB(28, 20, 28, 16)
+        : const EdgeInsets.fromLTRB(32, 36, 32, 24);
+    final gap1 = compact ? 16.0 : 32.0;
+    final gap2 = compact ? 16.0 : 24.0;
 
     return PopScope(
       canPop: false,
       child: Dialog(
         backgroundColor: scheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(32, 36, 32, 24),
+        // Tighter vertical inset in landscape so the dialog has more room.
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: 40,
+          vertical: compact ? 12 : 24,
+        ),
+        child: SingleChildScrollView(
+          padding: innerPadding,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -141,7 +156,7 @@ class _ProgressDialogState extends State<ProgressDialog> {
                   color: scheme.onSurface,
                 ),
               ),
-              const SizedBox(height: 32),
+              SizedBox(height: gap1),
               ValueListenableBuilder<double>(
                 valueListenable: widget.progress,
                 builder: (_, value, __) {
@@ -150,15 +165,15 @@ class _ProgressDialogState extends State<ProgressDialog> {
                   return Column(
                     children: [
                       SizedBox(
-                        width: 100,
-                        height: 100,
+                        width: circleSize,
+                        height: circleSize,
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
                             SizedBox.expand(
                               child: CircularProgressIndicator(
                                 value: value > 0 ? value : null,
-                                strokeWidth: 8,
+                                strokeWidth: compact ? 6 : 8,
                                 backgroundColor:
                                     scheme.primary.withValues(alpha: 0.15),
                                 color: scheme.primary,
@@ -167,7 +182,7 @@ class _ProgressDialogState extends State<ProgressDialog> {
                             Text(
                               value > 0 ? '$pct%' : '…',
                               style: TextStyle(
-                                fontSize: 22,
+                                fontSize: circleFont,
                                 fontWeight: FontWeight.w700,
                                 color: scheme.primary,
                               ),
@@ -175,7 +190,7 @@ class _ProgressDialogState extends State<ProgressDialog> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      SizedBox(height: gap2),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: LinearProgressIndicator(
@@ -186,7 +201,6 @@ class _ProgressDialogState extends State<ProgressDialog> {
                           color: scheme.primary,
                         ),
                       ),
-                      // ETA label — only rendered when estimable.
                       AnimatedSize(
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOut,
@@ -209,7 +223,7 @@ class _ProgressDialogState extends State<ProgressDialog> {
                 },
               ),
               if (widget.onCancelRequested != null) ...[
-                const SizedBox(height: 24),
+                SizedBox(height: gap2),
                 TextButton(
                   onPressed: () => _confirmCancel(context),
                   style: TextButton.styleFrom(
