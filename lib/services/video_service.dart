@@ -232,7 +232,7 @@ class VideoService {
         }
         await Future<void>.delayed(const Duration(milliseconds: 200));
         return true;
-      });
+      }).catchError((_) {});
     }
 
     return completer.future;

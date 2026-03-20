@@ -136,12 +136,15 @@ class _ProgressDialogState extends State<ProgressDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Compressing…',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface,
+              ValueListenableBuilder<String>(
+                valueListenable: widget.statusMessage,
+                builder: (_, msg, __) => Text(
+                  msg.isEmpty ? 'Compressing…' : msg,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
                 ),
               ),
               SizedBox(height: gap1),
