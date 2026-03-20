@@ -135,8 +135,12 @@ class _HomePageState extends State<HomePage> {
     final status = ValueNotifier<String>('Starting…');
     final token = CancellationToken();
 
+    // Capture the dialog future so we can await its full dismissal before
+    // disposing the notifiers. Disposing while the dialog still has listeners
+    // (during its exit animation) triggers a ChangeNotifier assertion crash.
+    Future<void>? dialogFuture;
     if (mounted) {
-      ProgressDialog.show(
+      dialogFuture = ProgressDialog.show(
         context,
         progress: progress,
         statusMessage: status,
@@ -207,6 +211,11 @@ class _HomePageState extends State<HomePage> {
         );
       }
     } finally {
+      // Wait for the dialog to fully unmount before disposing the notifiers
+      // it was listening to. Navigator.pop() starts the exit animation but
+      // the widget's dispose() (which calls removeListener) runs only after
+      // the animation completes — i.e., when dialogFuture resolves.
+      await dialogFuture;
       progress.dispose();
       status.dispose();
     }
