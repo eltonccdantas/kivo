@@ -241,7 +241,10 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final width = MediaQuery.of(context).size.width;
-    final isWide = width >= 600;
+    // Wide two-column layout only makes sense on mobile (landscape phone / tablet).
+    // Desktop windows are freely resizable — use the centered column there.
+    final isMobileDevice = Platform.isAndroid || Platform.isIOS;
+    final isWide = isMobileDevice && width >= 600;
 
     return Scaffold(
       body: SafeArea(
@@ -305,32 +308,37 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Single-column layout for portrait phones (< 600 dp).
+  // Single-column layout for portrait phones and all desktop platforms.
   // Scrollable so content is never clipped on small or short screens.
   Widget _buildNarrowLayout(ColorScheme scheme) {
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
-          child: IntrinsicHeight(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(scheme),
-                const SizedBox(height: 28),
-                _buildFileCard(scheme),
-                const SizedBox(height: 12),
-                if (_lastResult != null) ...[
-                  _buildResultCard(_lastResult!, scheme),
-                  const SizedBox(height: 12),
-                ],
-                const Spacer(),
-                _buildActions(scheme),
-                const SizedBox(height: 20),
-                _buildFooter(scheme),
-                const SizedBox(height: 4),
-              ],
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(scheme),
+                    const SizedBox(height: 28),
+                    _buildFileCard(scheme),
+                    const SizedBox(height: 12),
+                    if (_lastResult != null) ...[
+                      _buildResultCard(_lastResult!, scheme),
+                      const SizedBox(height: 12),
+                    ],
+                    const Spacer(),
+                    _buildActions(scheme),
+                    const SizedBox(height: 20),
+                    _buildFooter(scheme),
+                    const SizedBox(height: 4),
+                  ],
+                ),
+              ),
             ),
           ),
         ),

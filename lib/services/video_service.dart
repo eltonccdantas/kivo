@@ -374,7 +374,16 @@ class VideoService {
     void Function(double)? onProgress,
     CancellationToken? cancellationToken,
   }) async {
-    final process = await Process.start(ffmpegPath, ['-y', ...args]);
+    final Process process;
+    try {
+      process = await Process.start(ffmpegPath, ['-y', ...args]);
+    } on ProcessException catch (e) {
+      throw Exception(
+        'FFmpeg not found or could not be started.\n'
+        'Make sure FFmpeg is installed (brew install ffmpeg on macOS).\n'
+        'Details: $e',
+      );
+    }
 
     // Kill the process if cancelled while it's running.
     if (cancellationToken != null) {
@@ -388,24 +397,31 @@ class VideoService {
       });
     }
 
+    // stderr carries FFmpeg progress info; swallow stream errors so a
+    // broken pipe or early process exit doesn't produce an unhandled exception.
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
-        .listen((chunk) {
-      if (totalSeconds > 0 && onProgress != null) {
-        final match =
-            RegExp(r'time=(\d+):(\d+):([\d.]+)').firstMatch(chunk);
-        if (match != null) {
-          final h = int.parse(match.group(1)!);
-          final m = int.parse(match.group(2)!);
-          final s = double.parse(match.group(3)!);
-          final current = h * 3600 + m * 60 + s;
-          final p = (current / totalSeconds).clamp(0.0, 0.99);
-          onProgress(progressOffset + progressScale * p);
+        .listen(
+      (chunk) {
+        if (totalSeconds > 0 && onProgress != null) {
+          final match =
+              RegExp(r'time=(\d+):(\d+):([\d.]+)').firstMatch(chunk);
+          if (match != null) {
+            final h = int.parse(match.group(1)!);
+            final m = int.parse(match.group(2)!);
+            final s = double.parse(match.group(3)!);
+            final current = h * 3600 + m * 60 + s;
+            final p = (current / totalSeconds).clamp(0.0, 0.99);
+            onProgress(progressOffset + progressScale * p);
+          }
         }
-      }
-    });
+      },
+      onError: (_) {}, // ignore stream-level errors (e.g. broken pipe)
+    );
 
-    process.stdout.drain<void>();
+    // Drain stdout to avoid the process blocking on a full pipe buffer.
+    // Ignore errors — stdout is unused.
+    await process.stdout.drain<void>().catchError((_) {});
     return await process.exitCode == 0;
   }
 }
