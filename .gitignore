@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Flutter-generated plugin registrant files (regenerated on every flutter pub get)
+**/GeneratedPluginRegistrant.*
+**/flutter_export_environment.sh
