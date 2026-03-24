@@ -1,4 +1,4 @@
-package com.example.kivo
+package com.kivo.app
 
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity

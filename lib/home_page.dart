@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -8,8 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'models/models.dart';
 import 'services/compression_service.dart';
 import 'utils/cancellation_token.dart';
+import 'utils/error_utils.dart';
 import 'utils/file_utils.dart';
-import 'widgets/progress_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,9 +20,10 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  File? _selectedFile;
-  FileKind _selectedKind = FileKind.unsupported;
-  CompressionResult? _lastResult;
+  final List<QueueItem> _queue = [];
+  bool _isProcessing = false;
+  bool _isDragging = false;
+  CancellationToken? _currentToken;
   String _appVersion = '';
 
   final _compressionService = CompressionService();
@@ -29,6 +31,9 @@ class _HomePageState extends State<HomePage> {
   static const _supportedFormats = 'Images: JPG, JPEG, PNG, WebP, HEIC, HEIF\n'
       'Videos: MP4, MOV, M4V, AVI, MKV, WebM\n'
       'Documents: PDF';
+
+  static bool get _isDesktop =>
+      !Platform.isAndroid && !Platform.isIOS;
 
   @override
   void initState() {
@@ -40,30 +45,18 @@ class _HomePageState extends State<HomePage> {
 
   // ── File selection ────────────────────────────────────────────────────────
 
-  Future<void> _pickFile() async {
-    // iOS: use FileType.custom so the system picker shows only supported types.
-    // Android & desktop: FileType.any — custom MIME filtering can silently fail
-    // in release builds; we validate the extension in Dart after selection.
+  Future<void> _pickFiles() async {
     final useCustomFilter = Platform.isIOS;
 
     FilePickerResult? result;
     try {
       result = await FilePicker.platform.pickFiles(
         type: useCustomFilter ? FileType.custom : FileType.any,
+        allowMultiple: true,
         allowedExtensions: useCustomFilter
             ? [
-                'jpg',
-                'jpeg',
-                'png',
-                'webp',
-                'heic',
-                'heif',
-                'mp4',
-                'mov',
-                'm4v',
-                'avi',
-                'mkv',
-                'webm',
+                'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif',
+                'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm',
                 'pdf',
               ]
             : null,
@@ -78,147 +71,283 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (result == null || result.files.isEmpty) return;
-    final path = result.files.first.path;
-    if (path == null) return;
-
-    final kind = inferFileKind(path);
-    if (!useCustomFilter && kind == FileKind.unsupported) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Unsupported file type. Please select an image, video, or PDF.',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      _selectedFile = File(path);
-      _selectedKind = kind;
-      _lastResult = null;
-    });
+    _addFilePaths(result.files.map((f) => f.path).whereType<String>().toList());
   }
 
-  // ── Compression ───────────────────────────────────────────────────────────
+  void _addFilePaths(List<String> paths) {
+    final useCustomFilter = Platform.isIOS;
+    final newItems = <QueueItem>[];
+    int skipped = 0;
 
-  Future<void> _compress() async {
-    final input = _selectedFile;
-    if (input == null || _selectedKind == FileKind.unsupported) return;
-
-    final ext = outputExtensionFor(_selectedKind);
-    final name = '${fileNameWithoutExtension(input.path)}_compressed.$ext';
-    final isMobile = Platform.isAndroid || Platform.isIOS;
-
-    // Desktop: ask where to save BEFORE compression so the user can cancel early.
-    String? desktopOutputPath;
-    if (!isMobile) {
-      desktopOutputPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save compressed file',
-        fileName: name,
+    for (final path in paths) {
+      final kind = inferFileKind(path);
+      if (!useCustomFilter && kind == FileKind.unsupported) {
+        skipped++;
+        continue;
+      }
+      // Skip duplicates that are already waiting
+      final alreadyQueued = _queue.any(
+        (item) => item.file.path == path && item.status == QueueStatus.waiting,
       );
-      if (desktopOutputPath == null) return; // cancelled
+      if (!alreadyQueued) {
+        newItems.add(QueueItem(file: File(path), kind: kind));
+      }
     }
 
-    // Mobile: compress to a temp file first; ask where to save afterwards.
-    final String compressToPath;
-    if (isMobile) {
-      final tmp = await getTemporaryDirectory();
-      compressToPath = '${tmp.path}/$name';
-    } else {
-      compressToPath = desktopOutputPath!;
+    if (newItems.isNotEmpty) {
+      setState(() => _queue.addAll(newItems));
     }
 
-    final progress = ValueNotifier<double>(0.0);
-    final status = ValueNotifier<String>('Starting…');
-    final token = CancellationToken();
+    if (skipped > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$skipped unsupported file(s) skipped.'),
+        ),
+      );
+    }
+  }
 
-    // Capture the dialog future so we can await its full dismissal before
-    // disposing the notifiers. Disposing while the dialog still has listeners
-    // (during its exit animation) triggers a ChangeNotifier assertion crash.
-    Future<void>? dialogFuture;
+  void _removeItem(QueueItem item) {
+    setState(() => _queue.remove(item));
+  }
+
+  void _clearCompleted() {
+    setState(() => _queue.removeWhere(
+          (i) =>
+              i.status == QueueStatus.done ||
+              i.status == QueueStatus.error ||
+              i.status == QueueStatus.cancelled,
+        ));
+  }
+
+  // ── Compression queue ─────────────────────────────────────────────────────
+
+  Future<void> _compressQueue() async {
+    if (_isProcessing) return;
+
+    final waitingItems =
+        _queue.where((i) => i.status == QueueStatus.waiting).toList();
+    if (waitingItems.isEmpty) return;
+
+    setState(() => _isProcessing = true);
+
+    for (final item in waitingItems) {
+      if (!mounted) break;
+      final token = CancellationToken();
+      setState(() => _currentToken = token);
+      await _compressItem(item, token);
+      if (token.isCancelled) break;
+    }
+
     if (mounted) {
-      dialogFuture = ProgressDialog.show(
-        context,
-        progress: progress,
-        statusMessage: status,
-        onCancelRequested: token.cancel,
-      );
+      setState(() {
+        _isProcessing = false;
+        _currentToken = null;
+      });
     }
+  }
+
+  Future<void> _compressItem(QueueItem item, CancellationToken token) async {
+    final ext = outputExtensionFor(item.kind);
+    final name = '${fileNameWithoutExtension(item.file.path)}_compressed.$ext';
+
+    // Ensure the temp directory exists before use — getTemporaryDirectory()
+    // returns a path that may not yet exist on macOS/desktop builds.
+    final tmpDir = await getTemporaryDirectory();
+    await tmpDir.create(recursive: true);
+    final compressToPath = '${tmpDir.path}/$name';
+
+    setState(() {
+      item.status = QueueStatus.compressing;
+      item.progress = 0.0;
+      item.statusMessage = _statusLabelFor(item.kind);
+    });
 
     try {
-      status.value = _statusLabelFor(_selectedKind);
       final result = await _compressionService.compress(
-        input,
-        _selectedKind,
+        item.file,
+        item.kind,
         compressToPath,
         onProgress: (p) {
-          progress.value = p;
-          status.value =
-              '${_statusLabelFor(_selectedKind)} ${(p * 100).toStringAsFixed(0)}%';
+          if (mounted) {
+            setState(() {
+              item.progress = p;
+              item.statusMessage =
+                  '${_statusLabelFor(item.kind)} ${(p * 100).toStringAsFixed(0)}%';
+            });
+          }
         },
         cancellationToken: token,
       );
 
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      // Show success dialog before asking where to save.
+      if (!mounted) return;
+      final confirmed = await _showSuccessDialog(result);
+      if (!confirmed) {
+        try { await File(compressToPath).delete(); } catch (_) {}
+        if (mounted) setState(() => item.status = QueueStatus.cancelled);
+        token.cancel();
+        return;
+      }
 
-      if (isMobile) {
-        // Read the compressed bytes and let the user pick where to save.
-        // FilePicker.saveFile(bytes: …) uses the Storage Access Framework
-        // (ContentResolver) which works on Android 10+ without extra permissions.
+      final String? savedPath;
+      if (_isDesktop) {
+        // Desktop: save dialog returns path only — write the file manually.
+        final destPath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save compressed file',
+          fileName: name,
+        );
+        if (destPath == null) {
+          try { await File(compressToPath).delete(); } catch (_) {}
+          if (mounted) setState(() => item.status = QueueStatus.cancelled);
+          token.cancel();
+          return;
+        }
+        await File(compressToPath).copy(destPath);
+        try { await File(compressToPath).delete(); } catch (_) {}
+        savedPath = destPath;
+      } else {
+        // Mobile: pass bytes directly so the OS handles the write.
         final bytes = await File(compressToPath).readAsBytes();
-        try {
-          await File(compressToPath).delete();
-        } catch (_) {}
-
-        final savedPath = await FilePicker.platform.saveFile(
+        try { await File(compressToPath).delete(); } catch (_) {}
+        savedPath = await FilePicker.platform.saveFile(
           dialogTitle: 'Save compressed file',
           fileName: name,
           bytes: bytes,
         );
-        if (savedPath == null) return; // user cancelled
+        if (savedPath == null) {
+          if (mounted) setState(() => item.status = QueueStatus.cancelled);
+          token.cancel();
+          return;
+        }
+      }
 
-        final finalResult = CompressionResult(
-          outputPath: savedPath,
+      if (!mounted) return;
+      setState(() {
+        item.status = QueueStatus.done;
+        item.progress = 1.0;
+        item.result = CompressionResult(
+          outputPath: savedPath!,
           originalBytes: result.originalBytes,
           compressedBytes: result.compressedBytes,
           improved: result.improved,
           note: result.note,
         );
-        setState(() => _lastResult = finalResult);
-        if (mounted) _showResultSnackBar(finalResult);
-      } else {
-        setState(() => _lastResult = result);
-        if (mounted) _showResultSnackBar(result);
-      }
+      });
     } on CompressionCancelledException {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Compression cancelled.')),
-        );
-      }
+      try { await File(compressToPath).delete(); } catch (_) {}
+      if (mounted) setState(() => item.status = QueueStatus.cancelled);
+      token.cancel();
     } catch (e) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      try { await File(compressToPath).delete(); } catch (_) {}
+      debugPrint('[KIVO] Compression error for ${item.file.path}:\n$e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        setState(() {
+          item.status = QueueStatus.error;
+          item.errorMessage = friendlyCompressionError(e);
+        });
       }
-    } finally {
-      // Wait for the dialog to fully unmount before disposing the notifiers
-      // it was listening to. Navigator.pop() starts the exit animation but
-      // the widget's dispose() (which calls removeListener) runs only after
-      // the animation completes — i.e., when dialogFuture resolves.
-      await dialogFuture;
-      progress.dispose();
-      status.dispose();
     }
+  }
+
+  void _cancelQueue() => _currentToken?.cancel();
+
+  Future<bool> _showSuccessDialog(CompressionResult result) async {
+    final scheme = Theme.of(context).colorScheme;
+    final color =
+        result.improved ? const Color(0xFF22C55E) : scheme.primary;
+
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    result.improved
+                        ? Icons.check_circle_rounded
+                        : Icons.info_rounded,
+                    color: color,
+                    size: 36,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  result.improved ? 'Compression complete!' : 'File ready',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  result.improved
+                      ? '${result.reductionPercent.toStringAsFixed(1)}% smaller\n'
+                          '${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)}'
+                      : 'The file is already well-compressed.\nNo significant reduction was possible.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: scheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            actions: [
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Discard',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: color,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   String _statusLabelFor(FileKind kind) {
@@ -234,38 +363,34 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _showResultSnackBar(CompressionResult r) {
-    final msg = r.improved
-        ? '${r.reductionPercent.toStringAsFixed(1)}% smaller '
-            '(${formatBytes(r.originalBytes)} → ${formatBytes(r.compressedBytes)})'
-        : 'File saved (already well-compressed).';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 5)),
-    );
-  }
-
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final width = MediaQuery.of(context).size.width;
-    // Wide two-column layout only makes sense on mobile (landscape phone / tablet).
-    // Desktop windows are freely resizable — use the centered column there.
     final isMobileDevice = Platform.isAndroid || Platform.isIOS;
     final isWide = isMobileDevice && width >= 600;
 
-    return Scaffold(
-      body: SafeArea(
-        child: isWide
-            ? _buildWideLayout(scheme)
-            : _buildNarrowLayout(scheme),
-      ),
-    );
+    Widget body = isWide
+        ? _buildWideLayout(scheme)
+        : _buildNarrowLayout(scheme);
+
+    if (_isDesktop) {
+      body = DropTarget(
+        onDragEntered: (_) => setState(() => _isDragging = true),
+        onDragExited: (_) => setState(() => _isDragging = false),
+        onDragDone: (detail) {
+          setState(() => _isDragging = false);
+          _addFilePaths(detail.files.map((f) => f.path).toList());
+        },
+        child: body,
+      );
+    }
+
+    return Scaffold(body: SafeArea(child: body));
   }
 
-  // Two-column layout for landscape phones and tablets (≥ 600 dp).
-  // Left panel: scrollable file info. Right panel: fixed actions + footer.
   Widget _buildWideLayout(ColorScheme scheme) {
     return Center(
       child: ConstrainedBox(
@@ -281,11 +406,7 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     _buildHeader(scheme, compact: true),
                     const SizedBox(height: 20),
-                    _buildFileCard(scheme),
-                    if (_lastResult != null) ...[
-                      const SizedBox(height: 12),
-                      _buildResultCard(_lastResult!, scheme),
-                    ],
+                    _buildQueueArea(scheme),
                   ],
                 ),
               ),
@@ -317,8 +438,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Single-column layout for portrait phones and all desktop platforms.
-  // Scrollable so content is never clipped on small or short screens.
   Widget _buildNarrowLayout(ColorScheme scheme) {
     return Center(
       child: ConstrainedBox(
@@ -334,12 +453,7 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     _buildHeader(scheme),
                     const SizedBox(height: 28),
-                    _buildFileCard(scheme),
-                    const SizedBox(height: 12),
-                    if (_lastResult != null) ...[
-                      _buildResultCard(_lastResult!, scheme),
-                      const SizedBox(height: 12),
-                    ],
+                    _buildQueueArea(scheme),
                     const Spacer(),
                     _buildActions(scheme),
                     const SizedBox(height: 20),
@@ -354,6 +468,395 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+
+  // ── Queue area ────────────────────────────────────────────────────────────
+
+  Widget _buildQueueArea(ColorScheme scheme) {
+    if (_queue.isEmpty) return _buildDropZone(scheme);
+
+    final hasCompleted = _queue.any(
+      (i) =>
+          i.status == QueueStatus.done ||
+          i.status == QueueStatus.error ||
+          i.status == QueueStatus.cancelled,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_isDragging) _buildDragOverlay(scheme),
+        ..._queue.map(
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildQueueItemCard(item, scheme),
+          ),
+        ),
+        if (hasCompleted) ...[
+          const SizedBox(height: 4),
+          TextButton.icon(
+            onPressed: _clearCompleted,
+            icon: const Icon(Icons.clear_all_rounded, size: 18),
+            label: const Text('Clear completed'),
+            style: TextButton.styleFrom(
+              foregroundColor: scheme.onSurface.withValues(alpha: 0.45),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDropZone(ColorScheme scheme) {
+    final isDragging = _isDragging;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      decoration: BoxDecoration(
+        color: isDragging
+            ? scheme.primary.withValues(alpha: 0.06)
+            : scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDragging
+              ? scheme.primary.withValues(alpha: 0.6)
+              : scheme.onSurface.withValues(alpha: 0.08),
+          width: isDragging ? 2 : 1.5,
+        ),
+      ),
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(
+            isDragging
+                ? Icons.file_download_rounded
+                : (_isDesktop
+                    ? Icons.file_upload_outlined
+                    : Icons.upload_file_rounded),
+            size: 48,
+            color: isDragging
+                ? scheme.primary.withValues(alpha: 0.7)
+                : scheme.onSurface.withValues(alpha: 0.25),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isDragging
+                ? 'Release to add files'
+                : (_isDesktop ? 'Drop files here' : 'No files selected'),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDragging
+                  ? scheme.primary.withValues(alpha: 0.8)
+                  : scheme.onSurface.withValues(alpha: 0.4),
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (!isDragging)
+            Text(
+              _isDesktop
+                  ? 'or tap "Add Files" to browse'
+                  : 'Tap "Add Files" to get started',
+              style: TextStyle(
+                fontSize: 13,
+                color: scheme.onSurface.withValues(alpha: 0.3),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDragOverlay(ColorScheme scheme) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: scheme.primary.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.file_download_rounded,
+              size: 16, color: scheme.primary.withValues(alpha: 0.8)),
+          const SizedBox(width: 8),
+          Text(
+            'Release to add to queue',
+            style: TextStyle(
+              fontSize: 13,
+              color: scheme.primary.withValues(alpha: 0.8),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQueueItemCard(QueueItem item, ColorScheme scheme) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _borderColorFor(item, scheme),
+          width: 1.5,
+        ),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _iconBgColorFor(item, scheme),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  iconForKind(item.kind),
+                  size: 20,
+                  color: _iconColorFor(item, scheme),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileBasename(item.file.path),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _subtitleFor(item),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _subtitleColorFor(item, scheme),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildItemTrailing(item, scheme),
+            ],
+          ),
+          if (item.status == QueueStatus.compressing) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: item.progress > 0 ? item.progress : null,
+                backgroundColor: scheme.onSurface.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
+                minHeight: 4,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemTrailing(QueueItem item, ColorScheme scheme) {
+    switch (item.status) {
+      case QueueStatus.waiting:
+        return IconButton(
+          icon: Icon(
+            Icons.close_rounded,
+            size: 18,
+            color: scheme.onSurface.withValues(alpha: 0.4),
+          ),
+          onPressed: _isProcessing ? null : () => _removeItem(item),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        );
+      case QueueStatus.compressing:
+        return const SizedBox.shrink();
+      case QueueStatus.done:
+        final result = item.result;
+        if (result != null && result.improved) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF22C55E).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '-${result.reductionPercent.toStringAsFixed(1)}%',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF22C55E),
+              ),
+            ),
+          );
+        }
+        return const Icon(Icons.check_circle_rounded,
+            size: 20, color: Color(0xFF22C55E));
+      case QueueStatus.error:
+        return Icon(Icons.error_outline_rounded,
+            size: 20, color: scheme.error);
+      case QueueStatus.cancelled:
+        return Icon(Icons.cancel_outlined,
+            size: 20, color: scheme.onSurface.withValues(alpha: 0.35));
+    }
+  }
+
+  Color _borderColorFor(QueueItem item, ColorScheme scheme) {
+    switch (item.status) {
+      case QueueStatus.waiting:
+        return scheme.onSurface.withValues(alpha: 0.08);
+      case QueueStatus.compressing:
+        return scheme.primary.withValues(alpha: 0.5);
+      case QueueStatus.done:
+        return const Color(0xFF22C55E).withValues(alpha: 0.4);
+      case QueueStatus.error:
+        return scheme.error.withValues(alpha: 0.4);
+      case QueueStatus.cancelled:
+        return scheme.onSurface.withValues(alpha: 0.06);
+    }
+  }
+
+  Color _iconBgColorFor(QueueItem item, ColorScheme scheme) {
+    switch (item.status) {
+      case QueueStatus.waiting:
+        return scheme.onSurface.withValues(alpha: 0.07);
+      case QueueStatus.compressing:
+        return scheme.primary.withValues(alpha: 0.12);
+      case QueueStatus.done:
+        return const Color(0xFF22C55E).withValues(alpha: 0.12);
+      case QueueStatus.error:
+        return scheme.error.withValues(alpha: 0.12);
+      case QueueStatus.cancelled:
+        return scheme.onSurface.withValues(alpha: 0.05);
+    }
+  }
+
+  Color _iconColorFor(QueueItem item, ColorScheme scheme) {
+    switch (item.status) {
+      case QueueStatus.waiting:
+        return scheme.onSurface.withValues(alpha: 0.5);
+      case QueueStatus.compressing:
+        return scheme.primary;
+      case QueueStatus.done:
+        return const Color(0xFF22C55E);
+      case QueueStatus.error:
+        return scheme.error;
+      case QueueStatus.cancelled:
+        return scheme.onSurface.withValues(alpha: 0.35);
+    }
+  }
+
+  String _subtitleFor(QueueItem item) {
+    final size = item.file.existsSync() ? item.file.lengthSync() : 0;
+    switch (item.status) {
+      case QueueStatus.waiting:
+        return '${formatBytes(size)}  ·  ${_kindLabel(item.kind)}';
+      case QueueStatus.compressing:
+        final pct = (item.progress * 100).toStringAsFixed(0);
+        return '${_statusLabelFor(item.kind)}  ·  $pct%';
+      case QueueStatus.done:
+        final result = item.result;
+        if (result != null && result.improved) {
+          return '${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)}';
+        }
+        return 'Saved · already well-compressed';
+      case QueueStatus.error:
+        return item.errorMessage ?? 'Compression failed';
+      case QueueStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  Color _subtitleColorFor(QueueItem item, ColorScheme scheme) {
+    switch (item.status) {
+      case QueueStatus.waiting:
+        return scheme.onSurface.withValues(alpha: 0.5);
+      case QueueStatus.compressing:
+        return scheme.primary.withValues(alpha: 0.8);
+      case QueueStatus.done:
+        return const Color(0xFF22C55E).withValues(alpha: 0.8);
+      case QueueStatus.error:
+        return scheme.error;
+      case QueueStatus.cancelled:
+        return scheme.onSurface.withValues(alpha: 0.35);
+    }
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  Widget _buildActions(ColorScheme scheme) {
+    final waitingCount =
+        _queue.where((i) => i.status == QueueStatus.waiting).length;
+    final compressLabel = waitingCount > 1
+        ? 'Compress All ($waitingCount)'
+        : 'Compress';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Tooltip(
+          message: _supportedFormats,
+          preferBelow: false,
+          child: OutlinedButton.icon(
+            onPressed: _isProcessing ? null : _pickFiles,
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text('Add Files'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_isProcessing)
+          OutlinedButton.icon(
+            onPressed: _cancelQueue,
+            icon: const Icon(Icons.stop_rounded, size: 20),
+            label: const Text('Cancel'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: scheme.error,
+              side: BorderSide(color: scheme.error.withValues(alpha: 0.5)),
+            ),
+          )
+        else
+          ElevatedButton.icon(
+            onPressed: waitingCount > 0 ? _compressQueue : null,
+            icon: const Icon(Icons.compress_rounded, size: 20),
+            label: Text(compressLabel),
+            style: ElevatedButton.styleFrom(
+              disabledBackgroundColor: scheme.primary.withValues(alpha: 0.2),
+              disabledForegroundColor: scheme.primary.withValues(alpha: 0.4),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _kindLabel(FileKind kind) {
+    switch (kind) {
+      case FileKind.image:
+        return 'Image';
+      case FileKind.video:
+        return 'Video';
+      case FileKind.pdf:
+        return 'PDF';
+      case FileKind.unsupported:
+        return 'Unknown';
+    }
+  }
+
+  // ── Header / Footer ───────────────────────────────────────────────────────
 
   Widget _buildHeader(ColorScheme scheme, {bool compact = false}) {
     final logoSize = compact ? 64.0 : 100.0;
@@ -443,234 +946,6 @@ class _HomePageState extends State<HomePage> {
       ],
     );
   }
-
-  Widget _buildFileCard(ColorScheme scheme) {
-    final hasFile = _selectedFile != null;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: hasFile
-              ? scheme.primary.withValues(alpha: 0.5)
-              : scheme.onSurface.withValues(alpha: 0.08),
-          width: 1.5,
-        ),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: hasFile ? _buildFileInfo(scheme) : _buildEmptyState(scheme),
-    );
-  }
-
-  Widget _buildEmptyState(ColorScheme scheme) {
-    return Column(
-      children: [
-        Icon(
-          Icons.upload_file_rounded,
-          size: 48,
-          color: scheme.onSurface.withValues(alpha: 0.25),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'No file selected',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: scheme.onSurface.withValues(alpha: 0.4),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Tap "Select File" to get started',
-          style: TextStyle(
-            fontSize: 13,
-            color: scheme.onSurface.withValues(alpha: 0.3),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFileInfo(ColorScheme scheme) {
-    final file = _selectedFile!;
-    final size = file.existsSync() ? file.lengthSync() : 0;
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: scheme.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            iconForKind(_selectedKind),
-            size: 28,
-            color: scheme.primary,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                fileBasename(file.path),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${formatBytes(size)}  ·  ${_kindLabel(_selectedKind)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: scheme.onSurface.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
-          ),
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.close_rounded,
-            size: 20,
-            color: scheme.onSurface.withValues(alpha: 0.4),
-          ),
-          onPressed: () => setState(() {
-            _selectedFile = null;
-            _selectedKind = FileKind.unsupported;
-            _lastResult = null;
-          }),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildResultCard(CompressionResult result, ColorScheme scheme) {
-    final color = result.improved ? const Color(0xFF22C55E) : scheme.secondary;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                result.improved
-                    ? Icons.check_circle_rounded
-                    : Icons.info_rounded,
-                size: 18,
-                color: color,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                result.improved ? 'Compression complete' : 'File saved',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color: color,
-                ),
-              ),
-              if (result.improved) ...[
-                const Spacer(),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '-${result.reductionPercent.toStringAsFixed(1)}%',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            result.improved
-                ? '${formatBytes(result.originalBytes)}  →  ${formatBytes(result.compressedBytes)}'
-                : formatBytes(result.originalBytes),
-            style: TextStyle(
-              fontSize: 13,
-              color: scheme.onSurface.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            result.outputPath,
-            style: TextStyle(
-              fontSize: 11,
-              color: scheme.onSurface.withValues(alpha: 0.4),
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActions(ColorScheme scheme) {
-    final canCompress =
-        _selectedFile != null && _selectedKind != FileKind.unsupported;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Tooltip(
-          message: _supportedFormats,
-          preferBelow: false,
-          child: OutlinedButton.icon(
-            onPressed: _pickFile,
-            icon: const Icon(Icons.folder_open_rounded, size: 20),
-            label: const Text('Select File'),
-          ),
-        ),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          onPressed: canCompress ? _compress : null,
-          icon: const Icon(Icons.compress_rounded, size: 20),
-          label: const Text('Compress'),
-          style: ElevatedButton.styleFrom(
-            disabledBackgroundColor: scheme.primary.withValues(alpha: 0.2),
-            disabledForegroundColor: scheme.primary.withValues(alpha: 0.4),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _kindLabel(FileKind kind) {
-    switch (kind) {
-      case FileKind.image:
-        return 'Image';
-      case FileKind.video:
-        return 'Video';
-      case FileKind.pdf:
-        return 'PDF';
-      case FileKind.unsupported:
-        return 'Unknown';
-    }
-  }
 }
 
 // ── Info modal ────────────────────────────────────────────────────────────────
@@ -693,7 +968,6 @@ class _InfoSheet extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Handle bar
             Container(
               margin: const EdgeInsets.only(top: 12, bottom: 4),
               width: 40,
@@ -708,7 +982,6 @@ class _InfoSheet extends StatelessWidget {
                 controller: controller,
                 padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
                 children: [
-                  // Title
                   Row(
                     children: [
                       Container(
@@ -733,28 +1006,22 @@ class _InfoSheet extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 24),
-
-                  // Privacy
                   _Section(
                     scheme: scheme,
                     icon: Icons.lock_outline_rounded,
                     iconColor: const Color(0xFF22C55E),
                     title: 'Your files never leave your device',
-                    body:
-                        'Everything happens locally. KIVO does not upload, '
+                    body: 'Everything happens locally. KIVO does not upload, '
                         'send, or store your files anywhere. No internet '
                         'connection is needed — not even for setup.',
                   ),
                   const SizedBox(height: 16),
-
-                  // How it works
                   _Section(
                     scheme: scheme,
                     icon: Icons.auto_fix_high_rounded,
                     iconColor: scheme.primary,
                     title: 'Smart compression',
-                    body:
-                        'KIVO analyses each file and applies the best '
+                    body: 'KIVO analyses each file and applies the best '
                         'algorithm for its type:\n\n'
                         '• Images — re-encoded at a slightly lower quality '
                         'that is imperceptible to the eye.\n'
@@ -764,8 +1031,6 @@ class _InfoSheet extends StatelessWidget {
                         'without affecting text or layout.',
                   ),
                   const SizedBox(height: 16),
-
-                  // Supported formats
                   _Section(
                     scheme: scheme,
                     icon: Icons.folder_open_rounded,
@@ -775,15 +1040,12 @@ class _InfoSheet extends StatelessWidget {
                     child: _FormatsGrid(scheme: scheme),
                   ),
                   const SizedBox(height: 16),
-
-                  // Tips
                   _Section(
                     scheme: scheme,
                     icon: Icons.lightbulb_outline_rounded,
                     iconColor: const Color(0xFF818CF8),
                     title: 'Good to know',
-                    body:
-                        '• Results vary by file — a heavily compressed video '
+                    body: '• Results vary by file — a heavily compressed video '
                         'may not shrink much further.\n'
                         '• The original file is never modified or deleted.\n'
                         '• Video compression can take a minute or two for '

@@ -47,3 +47,9 @@ app.*.map.json
 # Flutter-generated plugin registrant files (regenerated on every flutter pub get)
 **/GeneratedPluginRegistrant.*
 **/flutter_export_environment.sh
+**/generated_plugin_registrant.cc
+**/generated_plugin_registrant.cpp
+**/generated_plugins.cmake
+
+# Local developer tool configuration (not relevant to the project)
+.claude/settings.local.json

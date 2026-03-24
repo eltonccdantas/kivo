@@ -58,6 +58,28 @@ void main() {
       expect(r.reductionPercent, 100.0);
     });
 
+    test('returns 0.0 when originalBytes is 0 (no division by zero)', () {
+      const r = CompressionResult(
+        outputPath: '/out.jpg',
+        originalBytes: 0,
+        compressedBytes: 0,
+        improved: false,
+        note: '',
+      );
+      expect(r.reductionPercent, 0.0);
+    });
+
+    test('1 % reduction', () {
+      const r = CompressionResult(
+        outputPath: '/out.jpg',
+        originalBytes: 10000,
+        compressedBytes: 9900,
+        improved: true,
+        note: '',
+      );
+      expect(r.reductionPercent, closeTo(1.0, 0.001));
+    });
+
     test('99 % reduction is below 100', () {
       const r = CompressionResult(
         outputPath: '/out.jpg',

@@ -13,7 +13,7 @@ val keystoreProps = Properties().apply {
 }
 
 android {
-    namespace = "com.example.kivo"
+    namespace = "com.kivo.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -38,7 +38,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.kivo"
+        applicationId = "com.kivo.app"
         // flutter.minSdkVersion = 24 (Android 7.0), which satisfies the
         // requirements for MediaCodec hardware encoding and flutter_image_compress HEIC support.
         minSdk = flutter.minSdkVersion

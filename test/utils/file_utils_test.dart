@@ -57,6 +57,24 @@ void main() {
     });
   });
 
+  group('formatBytes — large values', () {
+    test('1 TB', () => expect(formatBytes(1024 * 1024 * 1024 * 1024), '1.0 TB'));
+    test('very large int stays numeric', () {
+      final result = formatBytes(1024 * 1024 * 1024 * 1024 * 2);
+      expect(result, isNotEmpty);
+    });
+  });
+
+  group('fileNameWithoutExtension — edge cases', () {
+    test('file with only a dot has empty name', () {
+      expect(fileNameWithoutExtension('.'), '');
+    });
+
+    test('file ending with dot returns base', () {
+      expect(fileNameWithoutExtension('file.'), 'file');
+    });
+  });
+
   group('inferFileKind', () {
     const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
     const videoExts = ['mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm'];
