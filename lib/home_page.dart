@@ -41,6 +41,49 @@ class _HomePageState extends State<HomePage> {
     PackageInfo.fromPlatform().then((info) {
       if (mounted) setState(() => _appVersion = 'v${info.version}');
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showWelcomeModal();
+    });
+  }
+
+  void _showWelcomeModal() {
+    final scheme = Theme.of(context).colorScheme;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: scheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.compress_rounded, color: scheme.primary, size: 22),
+            const SizedBox(width: 10),
+            Text(
+              'Supported formats',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: _FormatsGrid(scheme: scheme),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Got it',
+              style: TextStyle(
+                color: scheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── File selection ────────────────────────────────────────────────────────
@@ -57,7 +100,7 @@ class _HomePageState extends State<HomePage> {
             ? [
                 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif',
                 'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm',
-                'pdf',
+                'pdf', 'json', 'xml', 'yaml', 'yml',
               ]
             : null,
       );
@@ -358,6 +401,12 @@ class _HomePageState extends State<HomePage> {
         return 'Compressing video…';
       case FileKind.pdf:
         return 'Compressing PDF…';
+      case FileKind.json:
+        return 'Minifying JSON…';
+      case FileKind.xml:
+        return 'Minifying XML…';
+      case FileKind.yaml:
+        return 'Minifying YAML…';
       case FileKind.unsupported:
         return 'Processing…';
     }
@@ -851,6 +900,12 @@ class _HomePageState extends State<HomePage> {
         return 'Video';
       case FileKind.pdf:
         return 'PDF';
+      case FileKind.json:
+        return 'JSON';
+      case FileKind.xml:
+        return 'XML';
+      case FileKind.yaml:
+        return 'YAML';
       case FileKind.unsupported:
         return 'Unknown';
     }
@@ -1028,7 +1083,12 @@ class _InfoSheet extends StatelessWidget {
                         '• Videos — transcoded to HEVC (H.265), the same '
                         'standard used by modern phones.\n'
                         '• PDFs — images inside the document are optimised '
-                        'without affecting text or layout.',
+                        'without affecting text or layout.\n'
+                        '• JSON — minified by removing all whitespace and '
+                        'unnecessary formatting.\n'
+                        '• XML — minified by removing all whitespace and '
+                        'unnecessary formatting.\n'
+                        '• YAML — minified by removing comments and blank lines.',
                   ),
                   const SizedBox(height: 16),
                   _Section(
@@ -1137,6 +1197,7 @@ class _FormatsGrid extends StatelessWidget {
     (Icons.image_outlined, 'Images', 'JPG · JPEG · PNG\nWebP · HEIC · HEIF'),
     (Icons.videocam_outlined, 'Videos', 'MP4 · MOV · M4V\nAVI · MKV · WebM'),
     (Icons.picture_as_pdf_outlined, 'Documents', 'PDF'),
+    (Icons.data_object_outlined, 'Data', 'JSON · XML · YAML'),
   ];
 
   @override

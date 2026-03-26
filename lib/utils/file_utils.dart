@@ -26,12 +26,18 @@ FileKind inferFileKind(String path) {
   const imageExts = {'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'};
   const videoExts = {'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm'};
   if (ext == 'pdf') return FileKind.pdf;
+  if (ext == 'json') return FileKind.json;
+  if (ext == 'xml') return FileKind.xml;
+  if (ext == 'yaml' || ext == 'yml') return FileKind.yaml;
   if (imageExts.contains(ext)) return FileKind.image;
   if (videoExts.contains(ext)) return FileKind.video;
   final mime = lookupMimeType(path) ?? '';
   if (mime.startsWith('image/')) return FileKind.image;
   if (mime.startsWith('video/')) return FileKind.video;
   if (mime == 'application/pdf') return FileKind.pdf;
+  if (mime == 'application/json') return FileKind.json;
+  if (mime == 'application/xml' || mime == 'text/xml') return FileKind.xml;
+  if (mime == 'application/yaml' || mime == 'text/yaml') return FileKind.yaml;
   return FileKind.unsupported;
 }
 
@@ -43,6 +49,12 @@ String outputExtensionFor(FileKind kind) {
       return 'mp4';
     case FileKind.pdf:
       return 'pdf';
+    case FileKind.json:
+      return 'json';
+    case FileKind.xml:
+      return 'xml';
+    case FileKind.yaml:
+      return 'yaml';
     case FileKind.unsupported:
       return 'bin';
   }
@@ -56,6 +68,12 @@ IconData iconForKind(FileKind kind) {
       return Icons.videocam_outlined;
     case FileKind.pdf:
       return Icons.picture_as_pdf_outlined;
+    case FileKind.json:
+      return Icons.data_object_outlined;
+    case FileKind.xml:
+      return Icons.code_outlined;
+    case FileKind.yaml:
+      return Icons.text_snippet_outlined;
     case FileKind.unsupported:
       return Icons.insert_drive_file_outlined;
   }

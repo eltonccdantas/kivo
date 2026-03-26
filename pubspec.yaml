@@ -19,6 +19,7 @@ dependencies:
   flutter_image_compress: ^2.1.0
   package_info_plus: ^9.0.0
   desktop_drop: ^0.4.4
+  xml: ^6.5.0
 
 dev_dependencies:
   flutter_test:

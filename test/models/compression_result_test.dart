@@ -108,8 +108,8 @@ void main() {
   });
 
   group('FileKind', () {
-    test('has exactly 4 values', () {
-      expect(FileKind.values.length, 4);
+    test('has exactly 7 values', () {
+      expect(FileKind.values.length, 7);
     });
 
     test('contains expected members', () {
@@ -119,6 +119,9 @@ void main() {
           FileKind.image,
           FileKind.video,
           FileKind.pdf,
+          FileKind.json,
+          FileKind.xml,
+          FileKind.yaml,
           FileKind.unsupported,
         ]),
       );

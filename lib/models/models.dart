@@ -1,6 +1,6 @@
 import 'dart:io';
 
-enum FileKind { image, video, pdf, unsupported }
+enum FileKind { image, video, pdf, json, xml, yaml, unsupported }
 
 enum QueueStatus { waiting, compressing, done, error, cancelled }
 
