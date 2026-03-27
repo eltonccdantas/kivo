@@ -29,6 +29,20 @@ void main() {
       expect(calculateEta(0.5, ago(3), t0), '');
       expect(calculateEta(0.5, ago(0), t0), '');
     });
+
+    test('progress = 0.05 → empty (at lower threshold)', () {
+      expect(calculateEta(0.05, ago(10), t0), '');
+    });
+
+    test('progress = 0.051 → not empty (just above threshold)', () {
+      // 10 s elapsed at 5.1 % → total ~196 s → remaining ~186 s → ~4 min
+      expect(calculateEta(0.051, ago(10), t0), isNotEmpty);
+    });
+
+    test('elapsed = 4 s → not empty (at threshold, condition is elapsed < 4)', () {
+      // 4 s elapsed at 10 % → total 40 s → remaining 36 s
+      expect(calculateEta(0.1, ago(4), t0), '~36 s remaining');
+    });
   });
 
   group('calculateEta — "Almost done…"', () {

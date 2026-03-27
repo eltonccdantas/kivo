@@ -159,6 +159,23 @@ void main() {
     });
   });
 
+  group('friendlyCompressionError — pattern priority', () {
+    test('video error takes priority over generic patterns', () {
+      // Contains both a video keyword and an unrelated word — video wins.
+      final msg = friendlyCompressionError(
+          Exception('Video encoding failed: unexpected error xyz'));
+      expect(msg, contains('Video compression failed'));
+      expect(msg, isNot('Compression failed. Please try again.'));
+    });
+
+    test('different exception types return a message', () {
+      expect(friendlyCompressionError(FormatException('bad format')),
+          isNotEmpty);
+      expect(friendlyCompressionError(ArgumentError('bad arg')), isNotEmpty);
+      expect(friendlyCompressionError(RangeError('out of range')), isNotEmpty);
+    });
+  });
+
   group('friendlyCompressionError — message is always non-empty', () {
     final cases = [
       Exception('Video encoding failed.'),

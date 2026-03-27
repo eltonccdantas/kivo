@@ -97,6 +97,32 @@ void main() {
       });
     }
 
+    for (final ext in videoExts) {
+      test('.${ext.toUpperCase()} → video (case insensitive)', () {
+        expect(inferFileKind('video.${ext.toUpperCase()}'), FileKind.video);
+      });
+    }
+
+    test('.json → json', () {
+      expect(inferFileKind('data.json'), FileKind.json);
+    });
+
+    test('.JSON → json (case insensitive)', () {
+      expect(inferFileKind('data.JSON'), FileKind.json);
+    });
+
+    test('.xml → xml', () {
+      expect(inferFileKind('config.xml'), FileKind.xml);
+    });
+
+    test('.yaml → yaml', () {
+      expect(inferFileKind('config.yaml'), FileKind.yaml);
+    });
+
+    test('.yml → yaml', () {
+      expect(inferFileKind('config.yml'), FileKind.yaml);
+    });
+
     test('.pdf → pdf', () {
       expect(inferFileKind('document.pdf'), FileKind.pdf);
     });
@@ -118,6 +144,9 @@ void main() {
     test('image → jpg', () => expect(outputExtensionFor(FileKind.image), 'jpg'));
     test('video → mp4', () => expect(outputExtensionFor(FileKind.video), 'mp4'));
     test('pdf → pdf', () => expect(outputExtensionFor(FileKind.pdf), 'pdf'));
+    test('json → json', () => expect(outputExtensionFor(FileKind.json), 'json'));
+    test('xml → xml', () => expect(outputExtensionFor(FileKind.xml), 'xml'));
+    test('yaml → yaml', () => expect(outputExtensionFor(FileKind.yaml), 'yaml'));
     test('unsupported → bin', () => expect(outputExtensionFor(FileKind.unsupported), 'bin'));
   });
 

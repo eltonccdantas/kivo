@@ -13,6 +13,8 @@ import 'utils/cancellation_token.dart';
 import 'utils/error_utils.dart';
 import 'utils/file_utils.dart';
 
+const _green = Color(0xFF22C55E);
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -354,7 +356,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<bool> _showSuccessDialog(CompressionResult result) async {
     final scheme = Theme.of(context).colorScheme;
-    final color = result.improved ? const Color(0xFF22C55E) : scheme.primary;
+    final color = result.improved ? _green : scheme.primary;
 
     return await showGeneralDialog<bool>(
           context: context,
@@ -931,7 +933,7 @@ class _HomePageState extends State<HomePage> {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: const Color(0xFF22C55E).withValues(alpha: 0.15),
+              color: _green.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
@@ -961,7 +963,7 @@ class _HomePageState extends State<HomePage> {
       case QueueStatus.compressing:
         return scheme.primary.withValues(alpha: 0.5);
       case QueueStatus.done:
-        return const Color(0xFF22C55E).withValues(alpha: 0.4);
+        return _green.withValues(alpha: 0.4);
       case QueueStatus.error:
         return scheme.error.withValues(alpha: 0.4);
       case QueueStatus.cancelled:
@@ -976,7 +978,7 @@ class _HomePageState extends State<HomePage> {
       case QueueStatus.compressing:
         return scheme.primary.withValues(alpha: 0.12);
       case QueueStatus.done:
-        return const Color(0xFF22C55E).withValues(alpha: 0.12);
+        return _green.withValues(alpha: 0.12);
       case QueueStatus.error:
         return scheme.error.withValues(alpha: 0.12);
       case QueueStatus.cancelled:
@@ -991,7 +993,7 @@ class _HomePageState extends State<HomePage> {
       case QueueStatus.compressing:
         return scheme.primary;
       case QueueStatus.done:
-        return const Color(0xFF22C55E);
+        return _green;
       case QueueStatus.error:
         return scheme.error;
       case QueueStatus.cancelled:
@@ -1026,7 +1028,7 @@ class _HomePageState extends State<HomePage> {
       case QueueStatus.compressing:
         return scheme.primary.withValues(alpha: 0.8);
       case QueueStatus.done:
-        return const Color(0xFF22C55E).withValues(alpha: 0.8);
+        return _green.withValues(alpha: 0.8);
       case QueueStatus.error:
         return scheme.error;
       case QueueStatus.cancelled:
@@ -1269,7 +1271,7 @@ class _InfoSheet extends StatelessWidget {
                   _Section(
                     scheme: scheme,
                     icon: Icons.lock_outline_rounded,
-                    iconColor: const Color(0xFF22C55E),
+                    iconColor: _green,
                     title: 'Your files never leave your device',
                     body: 'Everything happens locally. KIVO does not upload, '
                         'send, or store your files anywhere. No internet '

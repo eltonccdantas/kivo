@@ -24,6 +24,15 @@ class ImageService {
         cancellationToken: cancellationToken);
   }
 
+  // Ensures the output path has a .jpg extension.
+  // flutter_image_compress always encodes to JPEG, so the output path must match.
+  static String _toJpegPath(String outputPath) {
+    final lower = outputPath.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return outputPath;
+    final dot = outputPath.lastIndexOf('.');
+    return dot == -1 ? '$outputPath.jpg' : '${outputPath.substring(0, dot)}.jpg';
+  }
+
   // ── Mobile ────────────────────────────────────────────────────────────────
   // Uses flutter_image_compress which decodes via platform APIs
   // (BitmapFactory on Android, UIImage on iOS) — supports HEIC/HEIF natively.
@@ -43,15 +52,7 @@ class ImageService {
     }
 
     // Output must be JPEG (flutter_image_compress always encodes to JPEG).
-    final String finalPath;
-    final lowerOutput = outputPath.toLowerCase();
-    if (lowerOutput.endsWith('.jpg') || lowerOutput.endsWith('.jpeg')) {
-      finalPath = outputPath;
-    } else {
-      final dot = outputPath.lastIndexOf('.');
-      finalPath =
-          dot == -1 ? '$outputPath.jpg' : '${outputPath.substring(0, dot)}.jpg';
-    }
+    final finalPath = _toJpegPath(outputPath);
 
     onProgress?.call(0.3);
 
@@ -118,15 +119,7 @@ class ImageService {
     final improved = jpgBytes.length < originalBytes &&
         (1 - jpgBytes.length / originalBytes) > 0.01;
 
-    final String finalPath;
-    final lowerOutput = outputPath.toLowerCase();
-    if (lowerOutput.endsWith('.jpg') || lowerOutput.endsWith('.jpeg')) {
-      finalPath = outputPath;
-    } else {
-      final dot = outputPath.lastIndexOf('.');
-      finalPath =
-          dot == -1 ? '$outputPath.jpg' : '${outputPath.substring(0, dot)}.jpg';
-    }
+    final finalPath = _toJpegPath(outputPath);
 
     await File(finalPath).writeAsBytes(jpgBytes, flush: true);
     onProgress?.call(1.0);
