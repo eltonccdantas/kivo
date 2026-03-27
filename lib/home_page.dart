@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'models/models.dart';
 import 'services/compression_service.dart';
@@ -21,6 +22,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final List<QueueItem> _queue = [];
+  final Set<String> _removingItemIds = {};
   bool _isProcessing = false;
   bool _isDragging = false;
   CancellationToken? _currentToken;
@@ -32,8 +34,7 @@ class _HomePageState extends State<HomePage> {
       'Videos: MP4, MOV, M4V, AVI, MKV, WebM\n'
       'Documents: PDF';
 
-  static bool get _isDesktop =>
-      !Platform.isAndroid && !Platform.isIOS;
+  static bool get _isDesktop => !Platform.isAndroid && !Platform.isIOS;
 
   @override
   void initState() {
@@ -48,9 +49,24 @@ class _HomePageState extends State<HomePage> {
 
   void _showWelcomeModal() {
     final scheme = Theme.of(context).colorScheme;
-    showDialog<void>(
+    showGeneralDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      transitionDuration: const Duration(milliseconds: 320),
+      transitionBuilder: (ctx, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeIn,
+        );
+        return ScaleTransition(
+          scale: Tween<double>(begin: 0.88, end: 1.0).animate(curved),
+          child: FadeTransition(opacity: curved, child: child),
+        );
+      },
+      pageBuilder: (ctx, _, __) => AlertDialog(
         backgroundColor: scheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
@@ -98,9 +114,23 @@ class _HomePageState extends State<HomePage> {
         allowMultiple: true,
         allowedExtensions: useCustomFilter
             ? [
-                'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif',
-                'mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm',
-                'pdf', 'json', 'xml', 'yaml', 'yml',
+                'jpg',
+                'jpeg',
+                'png',
+                'webp',
+                'heic',
+                'heif',
+                'mp4',
+                'mov',
+                'm4v',
+                'avi',
+                'mkv',
+                'webm',
+                'pdf',
+                'json',
+                'xml',
+                'yaml',
+                'yml',
               ]
             : null,
       );
@@ -155,12 +185,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _clearCompleted() {
-    setState(() => _queue.removeWhere(
-          (i) =>
-              i.status == QueueStatus.done ||
-              i.status == QueueStatus.error ||
-              i.status == QueueStatus.cancelled,
-        ));
+    final ids = _queue
+        .where((i) =>
+            i.status == QueueStatus.done ||
+            i.status == QueueStatus.error ||
+            i.status == QueueStatus.cancelled)
+        .map((i) => i.id)
+        .toSet();
+
+    setState(() => _removingItemIds.addAll(ids));
+
+    Future.delayed(const Duration(milliseconds: 480), () {
+      if (!mounted) return;
+      setState(() {
+        _queue.removeWhere((i) => ids.contains(i.id));
+        _removingItemIds.removeAll(ids);
+      });
+    });
   }
 
   // ── Compression queue ─────────────────────────────────────────────────────
@@ -214,9 +255,9 @@ class _HomePageState extends State<HomePage> {
         onProgress: (p) {
           if (mounted) {
             setState(() {
-              item.progress = p;
-              item.statusMessage =
-                  '${_statusLabelFor(item.kind)} ${(p * 100).toStringAsFixed(0)}%';
+              // Never regress — when a fallback attempt restarts from 0 the
+              // bar should stay put rather than jumping backwards.
+              if (p > item.progress) item.progress = p;
             });
           }
         },
@@ -227,11 +268,17 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       final confirmed = await _showSuccessDialog(result);
       if (!confirmed) {
-        try { await File(compressToPath).delete(); } catch (_) {}
+        try {
+          await File(compressToPath).delete();
+        } catch (_) {}
         if (mounted) setState(() => item.status = QueueStatus.cancelled);
         token.cancel();
         return;
       }
+
+      // Wait for the dialog exit animation to finish before opening FilePicker.
+      // Without this delay, the Android Activity focus hand-off causes a black screen.
+      await Future<void>.delayed(const Duration(milliseconds: 350));
 
       final String? savedPath;
       if (_isDesktop) {
@@ -241,18 +288,24 @@ class _HomePageState extends State<HomePage> {
           fileName: name,
         );
         if (destPath == null) {
-          try { await File(compressToPath).delete(); } catch (_) {}
+          try {
+            await File(compressToPath).delete();
+          } catch (_) {}
           if (mounted) setState(() => item.status = QueueStatus.cancelled);
           token.cancel();
           return;
         }
         await File(compressToPath).copy(destPath);
-        try { await File(compressToPath).delete(); } catch (_) {}
+        try {
+          await File(compressToPath).delete();
+        } catch (_) {}
         savedPath = destPath;
       } else {
         // Mobile: pass bytes directly so the OS handles the write.
         final bytes = await File(compressToPath).readAsBytes();
-        try { await File(compressToPath).delete(); } catch (_) {}
+        try {
+          await File(compressToPath).delete();
+        } catch (_) {}
         savedPath = await FilePicker.platform.saveFile(
           dialogTitle: 'Save compressed file',
           fileName: name,
@@ -278,11 +331,15 @@ class _HomePageState extends State<HomePage> {
         );
       });
     } on CompressionCancelledException {
-      try { await File(compressToPath).delete(); } catch (_) {}
+      try {
+        await File(compressToPath).delete();
+      } catch (_) {}
       if (mounted) setState(() => item.status = QueueStatus.cancelled);
       token.cancel();
     } catch (e) {
-      try { await File(compressToPath).delete(); } catch (_) {}
+      try {
+        await File(compressToPath).delete();
+      } catch (_) {}
       debugPrint('[KIVO] Compression error for ${item.file.path}:\n$e');
       if (mounted) {
         setState(() {
@@ -297,13 +354,26 @@ class _HomePageState extends State<HomePage> {
 
   Future<bool> _showSuccessDialog(CompressionResult result) async {
     final scheme = Theme.of(context).colorScheme;
-    final color =
-        result.improved ? const Color(0xFF22C55E) : scheme.primary;
+    final color = result.improved ? const Color(0xFF22C55E) : scheme.primary;
 
-    return await showDialog<bool>(
+    return await showGeneralDialog<bool>(
           context: context,
           barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
+          barrierLabel: '',
+          barrierColor: Colors.black.withValues(alpha: 0.5),
+          transitionDuration: const Duration(milliseconds: 320),
+          transitionBuilder: (ctx, animation, _, child) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeIn,
+            );
+            return ScaleTransition(
+              scale: Tween<double>(begin: 0.88, end: 1.0).animate(curved),
+              child: FadeTransition(opacity: curved, child: child),
+            );
+          },
+          pageBuilder: (ctx, _, __) => AlertDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
@@ -421,9 +491,8 @@ class _HomePageState extends State<HomePage> {
     final isMobileDevice = Platform.isAndroid || Platform.isIOS;
     final isWide = isMobileDevice && width >= 600;
 
-    Widget body = isWide
-        ? _buildWideLayout(scheme)
-        : _buildNarrowLayout(scheme);
+    Widget body =
+        isWide ? _buildWideLayout(scheme) : _buildNarrowLayout(scheme);
 
     if (_isDesktop) {
       body = DropTarget(
@@ -495,7 +564,8 @@ class _HomePageState extends State<HomePage> {
           builder: (context, constraints) => SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
             child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight - 64),
+              constraints:
+                  BoxConstraints(minHeight: constraints.maxHeight - 64),
               child: IntrinsicHeight(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -521,8 +591,30 @@ class _HomePageState extends State<HomePage> {
   // ── Queue area ────────────────────────────────────────────────────────────
 
   Widget _buildQueueArea(ColorScheme scheme) {
-    if (_queue.isEmpty) return _buildDropZone(scheme);
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 380),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.03),
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        ),
+      ),
+      child: _queue.isEmpty
+          ? KeyedSubtree(
+              key: const ValueKey('empty'),
+              child: _buildDropZone(scheme),
+            )
+          : _buildQueueList(scheme),
+    );
+  }
 
+  Widget _buildQueueList(ColorScheme scheme) {
     final hasCompleted = _queue.any(
       (i) =>
           i.status == QueueStatus.done ||
@@ -531,15 +623,30 @@ class _HomePageState extends State<HomePage> {
     );
 
     return Column(
+      key: const ValueKey('list'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (_isDragging) _buildDragOverlay(scheme),
-        ..._queue.map(
-          (item) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _buildQueueItemCard(item, scheme),
-          ),
-        ),
+        ..._queue.map((item) {
+          final isRemoving = _removingItemIds.contains(item.id);
+          return TweenAnimationBuilder<double>(
+            key: ValueKey(item.id),
+            tween: Tween<double>(begin: 0.0, end: isRemoving ? 0.0 : 1.0),
+            duration: Duration(milliseconds: isRemoving ? 460 : 580),
+            curve: isRemoving ? Curves.easeIn : Curves.easeOutCubic,
+            builder: (context, value, child) => Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 16 * (1 - value)),
+                child: child,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildQueueItemCard(item, scheme),
+            ),
+          );
+        }),
         if (hasCompleted) ...[
           const SizedBox(height: 4),
           TextButton.icon(
@@ -559,7 +666,8 @@ class _HomePageState extends State<HomePage> {
     final isDragging = _isDragging;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
       decoration: BoxDecoration(
         color: isDragging
             ? scheme.primary.withValues(alpha: 0.06)
@@ -646,8 +754,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildQueueItemCard(QueueItem item, ColorScheme scheme) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+    final isDone = item.status == QueueStatus.done && item.result != null;
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -700,24 +810,104 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               const SizedBox(width: 8),
-              _buildItemTrailing(item, scheme),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale:
+                        Tween<double>(begin: 0.7, end: 1.0).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey(item.status),
+                  child: _buildItemTrailing(item, scheme),
+                ),
+              ),
             ],
           ),
-          if (item.status == QueueStatus.compressing) ...[
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: item.progress > 0 ? item.progress : null,
-                backgroundColor: scheme.onSurface.withValues(alpha: 0.08),
-                valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
-                minHeight: 4,
-              ),
-            ),
-          ],
+          AnimatedSize(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeInOutCubic,
+            child: item.status == QueueStatus.compressing
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(
+                              begin: 0,
+                              end: item.progress,
+                            ),
+                            duration: const Duration(milliseconds: 500),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, value, _) => ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: value > 0 ? value : null,
+                                backgroundColor:
+                                    scheme.onSurface.withValues(alpha: 0.08),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    scheme.primary),
+                                minHeight: 4,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 34,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                                    opacity: animation, child: child),
+                            child: Text(
+                              item.progress > 0
+                                  ? '${(item.progress * 100).toStringAsFixed(0)}%'
+                                  : '',
+                              key: ValueKey(
+                                  (item.progress * 100).toStringAsFixed(0)),
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
+    if (!isDone) return card;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => _openFile(item.result!.outputPath),
+        child: card,
+      ),
+    );
+  }
+
+  Future<void> _openFile(String path) async {
+    // content:// URIs come from Android's Storage Access Framework.
+    // canLaunchUrl always returns false for content:// URIs without
+    // extra <queries> manifest entries, so skip the check and launch directly.
+    final uri =
+        path.startsWith('content://') ? Uri.parse(path) : Uri.file(path);
+    try {
+      await launchUrl(uri);
+    } catch (_) {}
   }
 
   Widget _buildItemTrailing(QueueItem item, ColorScheme scheme) {
@@ -757,8 +947,7 @@ class _HomePageState extends State<HomePage> {
         return const Icon(Icons.check_circle_rounded,
             size: 20, color: Color(0xFF22C55E));
       case QueueStatus.error:
-        return Icon(Icons.error_outline_rounded,
-            size: 20, color: scheme.error);
+        return Icon(Icons.error_outline_rounded, size: 20, color: scheme.error);
       case QueueStatus.cancelled:
         return Icon(Icons.cancel_outlined,
             size: 20, color: scheme.onSurface.withValues(alpha: 0.35));
@@ -816,8 +1005,7 @@ class _HomePageState extends State<HomePage> {
       case QueueStatus.waiting:
         return '${formatBytes(size)}  ·  ${_kindLabel(item.kind)}';
       case QueueStatus.compressing:
-        final pct = (item.progress * 100).toStringAsFixed(0);
-        return '${_statusLabelFor(item.kind)}  ·  $pct%';
+        return _statusLabelFor(item.kind);
       case QueueStatus.done:
         final result = item.result;
         if (result != null && result.improved) {
@@ -851,9 +1039,8 @@ class _HomePageState extends State<HomePage> {
   Widget _buildActions(ColorScheme scheme) {
     final waitingCount =
         _queue.where((i) => i.status == QueueStatus.waiting).length;
-    final compressLabel = waitingCount > 1
-        ? 'Compress All ($waitingCount)'
-        : 'Compress';
+    final compressLabel =
+        waitingCount > 1 ? 'Compress All ($waitingCount)' : 'Compress';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -868,26 +1055,44 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         const SizedBox(height: 12),
-        if (_isProcessing)
-          OutlinedButton.icon(
-            onPressed: _cancelQueue,
-            icon: const Icon(Icons.stop_rounded, size: 20),
-            label: const Text('Cancel'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: scheme.error,
-              side: BorderSide(color: scheme.error.withValues(alpha: 0.5)),
-            ),
-          )
-        else
-          ElevatedButton.icon(
-            onPressed: waitingCount > 0 ? _compressQueue : null,
-            icon: const Icon(Icons.compress_rounded, size: 20),
-            label: Text(compressLabel),
-            style: ElevatedButton.styleFrom(
-              disabledBackgroundColor: scheme.primary.withValues(alpha: 0.2),
-              disabledForegroundColor: scheme.primary.withValues(alpha: 0.4),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 380),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.93, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
+              child: child,
             ),
           ),
+          child: _isProcessing
+              ? OutlinedButton.icon(
+                  key: const ValueKey('cancel'),
+                  onPressed: _cancelQueue,
+                  icon: const Icon(Icons.stop_rounded, size: 20),
+                  label: const Text('Cancel'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: scheme.error,
+                    side:
+                        BorderSide(color: scheme.error.withValues(alpha: 0.5)),
+                  ),
+                )
+              : ElevatedButton.icon(
+                  key: const ValueKey('compress'),
+                  onPressed: waitingCount > 0 ? _compressQueue : null,
+                  icon: const Icon(Icons.compress_rounded, size: 20),
+                  label: Text(compressLabel),
+                  style: ElevatedButton.styleFrom(
+                    disabledBackgroundColor:
+                        scheme.primary.withValues(alpha: 0.2),
+                    disabledForegroundColor:
+                        scheme.primary.withValues(alpha: 0.4),
+                  ),
+                ),
+        ),
       ],
     );
   }
