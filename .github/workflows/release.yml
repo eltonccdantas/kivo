@@ -8,6 +8,10 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
 
+# Each platform job builds and uploads directly to the GitHub Release.
+# No upload-artifact / download-artifact intermediary — avoids consuming
+# Actions artifact storage quota entirely.
+
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
   # Android — builds a signed APK (falls back to debug signing if no keystore)
@@ -15,6 +19,8 @@ jobs:
   android:
     name: Android APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -46,10 +52,10 @@ jobs:
       - name: Rename artifact
         run: mv build/app/outputs/flutter-apk/app-release.apk kivo-android.apk
 
-      - uses: actions/upload-artifact@v4.6.2
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: android
-          path: kivo-android.apk
+          files: kivo-android.apk
 
   # ────────────────────────────────────────────────────────────────────────────
   # macOS — arm64 (also runs on Intel Macs via Rosetta 2)
@@ -57,6 +63,8 @@ jobs:
   macos:
     name: macOS App
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -79,10 +87,10 @@ jobs:
           cd build/macos/Build/Products/Release
           zip -r "$GITHUB_WORKSPACE/kivo-macos.zip" kivo.app
 
-      - uses: actions/upload-artifact@v4.6.2
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: macos
-          path: kivo-macos.zip
+          files: kivo-macos.zip
 
   # ────────────────────────────────────────────────────────────────────────────
   # Windows — embeds a static FFmpeg binary and packages as a .zip
@@ -90,6 +98,8 @@ jobs:
   windows:
     name: Windows App
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -114,10 +124,10 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath kivo-windows.zip
 
-      - uses: actions/upload-artifact@v4.6.2
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: windows
-          path: kivo-windows.zip
+          files: kivo-windows.zip
 
   # ────────────────────────────────────────────────────────────────────────────
   # Linux — embeds a static FFmpeg binary and packages as a .tar.gz
@@ -125,6 +135,8 @@ jobs:
   linux:
     name: Linux App
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -153,31 +165,7 @@ jobs:
       - name: Package as tar.gz
         run: tar -czf kivo-linux-x64.tar.gz -C build/linux/x64/release/bundle .
 
-      - uses: actions/upload-artifact@v4.6.2
-        with:
-          name: linux
-          path: kivo-linux-x64.tar.gz
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # Create the GitHub Release with all platform artifacts
-  # ────────────────────────────────────────────────────────────────────────────
-  release:
-    name: Publish GitHub Release
-    needs: [android, macos, windows, linux]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4.3.0
-        with:
-          merge-multiple: true
-
-      - name: Create release
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
-          files: |
-            kivo-android.apk
-            kivo-macos.zip
-            kivo-windows.zip
-            kivo-linux-x64.tar.gz
+          files: kivo-linux-x64.tar.gz
