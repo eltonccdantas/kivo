@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1163,6 +1164,15 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         IconButton(
+          onPressed: () => _showSupportModal(context, scheme),
+          icon: Icon(
+            Icons.favorite_border_rounded,
+            color: scheme.onSurface.withValues(alpha: 0.45),
+            size: 22,
+          ),
+          tooltip: 'Support KIVO',
+        ),
+        IconButton(
           onPressed: () => _showInfoModal(context, scheme),
           icon: Icon(
             Icons.help_outline_rounded,
@@ -1184,17 +1194,34 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _showSupportModal(BuildContext ctx, ColorScheme scheme) {
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SupportSheet(scheme: scheme),
+    );
+  }
+
   Widget _buildFooter(ColorScheme scheme) {
     return Column(
       children: [
-        Text(
-          'eltondantas.com =)',
-          style: TextStyle(
-            fontSize: 12,
-            color: scheme.onSurface.withValues(alpha: 0.35),
-            fontWeight: FontWeight.w500,
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => launchUrl(Uri.parse('https://eltondantas.com')),
+            child: Text(
+              'eltondantas.com =)',
+              style: TextStyle(
+                fontSize: 12,
+                color: scheme.primary.withValues(alpha: 0.6),
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.underline,
+                decorationColor: scheme.primary.withValues(alpha: 0.3),
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
-          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 2),
         Text(
@@ -1318,6 +1345,8 @@ class _InfoSheet extends StatelessWidget {
                         '• Video compression can take a minute or two for '
                         'large files.',
                   ),
+                  const SizedBox(height: 16),
+                  _SupportSection(scheme: scheme),
                 ],
               ),
             ),
@@ -1446,6 +1475,278 @@ class _FormatsGrid extends StatelessWidget {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+// ── Support section (shared by _InfoSheet and _SupportSheet) ──────────────────
+
+class _SupportSection extends StatefulWidget {
+  const _SupportSection({required this.scheme});
+  final ColorScheme scheme;
+
+  @override
+  State<_SupportSection> createState() => _SupportSectionState();
+}
+
+class _SupportSectionState extends State<_SupportSection> {
+  static const _pixKey = '3a2b8066-7987-4e10-b0da-8ccc4c9da565';
+  static const _paypalUrl =
+      'https://www.paypal.com/qrcodes/p2pqrc/XQ3ZNNY4G6KAY';
+
+  bool _copied = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = widget.scheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFEC4899).withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFEC4899).withValues(alpha: 0.18),
+        ),
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.favorite_rounded,
+                  color: Color(0xFFEC4899), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Support the project',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'KIVO is free and open source. If it has been useful to you, '
+            'consider supporting its development — every contribution helps!',
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.55,
+              color: scheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // PIX
+          Text(
+            'PIX (Brazil)',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface.withValues(alpha: 0.5),
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () async {
+              if (_copied) return;
+              await Clipboard.setData(const ClipboardData(text: _pixKey));
+              setState(() => _copied = true);
+              await Future<void>.delayed(const Duration(milliseconds: 1500));
+              if (mounted) setState(() => _copied = false);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: scheme.onSurface.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+                border:
+                    Border.all(color: scheme.onSurface.withValues(alpha: 0.1)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _pixKey,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'monospace',
+                        color: scheme.onSurface.withValues(alpha: 0.85),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.6, end: 1.0)
+                            .animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    child: _copied
+                        ? const Icon(Icons.check_rounded,
+                            key: ValueKey('check'), size: 16, color: _green)
+                        : Icon(Icons.copy_rounded,
+                            key: const ValueKey('copy'),
+                            size: 16,
+                            color: scheme.onSurface.withValues(alpha: 0.4)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // PayPal
+          Text(
+            'PAYPAL',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface.withValues(alpha: 0.5),
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/images/paypal_qr.jpg',
+                width: 180,
+                height: 180,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              'Scan to pay via PayPal — you choose the amount',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: scheme.onSurface.withValues(alpha: 0.5),
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => launchUrl(Uri.parse(_paypalUrl),
+                    mode: LaunchMode.externalApplication),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF003087).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFF003087).withValues(alpha: 0.25)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.open_in_new_rounded,
+                          size: 15, color: Color(0xFF009CDE)),
+                      SizedBox(width: 7),
+                      Text(
+                        'Donate via PayPal',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF009CDE),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Support modal sheet ────────────────────────────────────────────────────────
+
+class _SupportSheet extends StatelessWidget {
+  const _SupportSheet({required this.scheme});
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.35,
+      maxChildSize: 0.75,
+      expand: false,
+      builder: (_, controller) => Container(
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: scheme.onSurface.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color:
+                              const Color(0xFFEC4899).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.favorite_rounded,
+                            color: Color(0xFFEC4899), size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        'Support KIVO',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurface,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _SupportSection(scheme: scheme),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
