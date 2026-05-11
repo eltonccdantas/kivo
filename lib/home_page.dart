@@ -17,7 +17,14 @@ import 'utils/file_utils.dart';
 const _green = Color(0xFF22C55E);
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    super.key,
+    required this.isDark,
+    required this.onToggleTheme,
+  });
+
+  final bool isDark;
+  final VoidCallback onToggleTheme;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -1146,7 +1153,7 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(
                   fontSize: titleSize,
                   fontWeight: FontWeight.w900,
-                  color: Colors.white,
+                  color: scheme.onSurface,
                   letterSpacing: -1.5,
                   height: 1,
                 ),
@@ -1162,6 +1169,15 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
+        ),
+        IconButton(
+          onPressed: widget.onToggleTheme,
+          icon: Icon(
+            widget.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+            color: scheme.onSurface.withValues(alpha: 0.45),
+            size: 22,
+          ),
+          tooltip: widget.isDark ? 'Switch to light mode' : 'Switch to dark mode',
         ),
         IconButton(
           onPressed: () => _showSupportModal(context, scheme),
