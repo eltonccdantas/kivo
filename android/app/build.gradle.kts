@@ -7,9 +7,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystorePropsFile = rootProject.file("key.properties")
-val keystoreProps = Properties().apply {
-    if (keystorePropsFile.exists()) load(FileInputStream(keystorePropsFile))
+// Load keystore properties
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -26,34 +29,34 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
-    signingConfigs {
-        if (keystorePropsFile.exists()) {
-            create("release") {
-                keyAlias     = keystoreProps["keyAlias"]     as String
-                keyPassword  = keystoreProps["keyPassword"]  as String
-                storeFile    = file(keystoreProps["storeFile"] as String)
-                storePassword = keystoreProps["storePassword"] as String
-            }
-        }
-    }
-
     defaultConfig {
         applicationId = "com.kivo.app"
-        // flutter.minSdkVersion = 24 (Android 7.0), which satisfies the
-        // requirements for MediaCodec hardware encoding and flutter_image_compress HEIC support.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    // Upload key used to sign releases uploaded to Google Play
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            storeFile = keystoreProperties.getProperty("storeFile")?.let {
+                file(it)
+            }
+            storePassword = keystoreProperties.getProperty("storePassword")
+        }
+    }
+
     buildTypes {
         release {
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = if (keystorePropsFile.exists())
-                signingConfigs.getByName("release")
-            else
-                signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

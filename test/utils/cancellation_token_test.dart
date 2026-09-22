@@ -109,8 +109,6 @@ void main() {
 
       await Future.doWhile(() async {
         if (!processRunning) return false;
-        loopBodyReached = true; // only reachable if flag were true
-        return true;
       });
 
       expect(loopBodyReached, false);
@@ -135,8 +133,8 @@ void main() {
       });
 
       expect(killed, true);
-      expect(iterations, greaterThan(0));  // at least one iteration ran
-      expect(iterations, lessThan(20));    // but the loop did not run forever
+      expect(iterations, greaterThan(0)); // at least one iteration ran
+      expect(iterations, lessThan(20)); // but the loop did not run forever
     });
   });
 }
