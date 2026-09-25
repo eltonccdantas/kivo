@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -40,7 +41,8 @@ class _HomePageState extends State<HomePage> {
 
   final _compressionService = CompressionService();
 
-  static const _supportedFormats = 'Images: JPG, JPEG, PNG, WebP, HEIC, HEIF\n'
+  static const _supportedFormats =
+      'Images: JPG, JPEG, PNG, WebP, HEIC, HEIF\n'
       'Videos: MP4, MOV, M4V, AVI, MKV, WebM\n'
       'Documents: PDF';
 
@@ -93,9 +95,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-        content: SingleChildScrollView(
-          child: _FormatsGrid(scheme: scheme),
-        ),
+        content: SingleChildScrollView(child: _FormatsGrid(scheme: scheme)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -117,11 +117,10 @@ class _HomePageState extends State<HomePage> {
   Future<void> _pickFiles() async {
     final useCustomFilter = Platform.isIOS;
 
-    FilePickerResult? result;
+    List<PlatformFile> result;
     try {
-      result = await FilePicker.platform.pickFiles(
+      result = await FilePicker.pickFiles(
         type: useCustomFilter ? FileType.custom : FileType.any,
-        allowMultiple: true,
         allowedExtensions: useCustomFilter
             ? [
                 'jpg',
@@ -153,8 +152,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    if (result == null || result.files.isEmpty) return;
-    _addFilePaths(result.files.map((f) => f.path).whereType<String>().toList());
+    if (result.isEmpty) return;
+    _addFilePaths(result.map((f) => f.path).whereType<String>().toList());
   }
 
   void _addFilePaths(List<String> paths) {
@@ -183,9 +182,7 @@ class _HomePageState extends State<HomePage> {
 
     if (skipped > 0 && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$skipped unsupported file(s) skipped.'),
-        ),
+        SnackBar(content: Text('$skipped unsupported file(s) skipped.')),
       );
     }
   }
@@ -196,10 +193,12 @@ class _HomePageState extends State<HomePage> {
 
   void _clearCompleted() {
     final ids = _queue
-        .where((i) =>
-            i.status == QueueStatus.done ||
-            i.status == QueueStatus.error ||
-            i.status == QueueStatus.cancelled)
+        .where(
+          (i) =>
+              i.status == QueueStatus.done ||
+              i.status == QueueStatus.error ||
+              i.status == QueueStatus.cancelled,
+        )
         .map((i) => i.id)
         .toSet();
 
@@ -219,8 +218,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _compressQueue() async {
     if (_isProcessing) return;
 
-    final waitingItems =
-        _queue.where((i) => i.status == QueueStatus.waiting).toList();
+    final waitingItems = _queue
+        .where((i) => i.status == QueueStatus.waiting)
+        .toList();
     if (waitingItems.isEmpty) return;
 
     setState(() => _isProcessing = true);
@@ -290,14 +290,12 @@ class _HomePageState extends State<HomePage> {
       // Without this delay, the Android Activity focus hand-off causes a black screen.
       await Future<void>.delayed(const Duration(milliseconds: 350));
 
-      final String? savedPath;
-      if (_isDesktop) {
-        // Desktop: save dialog returns path only — write the file manually.
-        final destPath = await FilePicker.platform.saveFile(
-          dialogTitle: 'Save compressed file',
-          fileName: name,
-        );
-        if (destPath == null) {
+      final String savedPath;
+      if (Platform.isMacOS) {
+        // file_picker no longer provides a macOS save dialog in its latest
+        // API, so use Flutter's native file selector on that platform.
+        final location = await getSaveLocation(suggestedName: name);
+        if (location == null) {
           try {
             await File(compressToPath).delete();
           } catch (_) {}
@@ -305,27 +303,31 @@ class _HomePageState extends State<HomePage> {
           token.cancel();
           return;
         }
-        await File(compressToPath).copy(destPath);
+        await File(compressToPath).copy(location.path);
         try {
           await File(compressToPath).delete();
         } catch (_) {}
-        savedPath = destPath;
+        savedPath = location.path;
       } else {
-        // Mobile: pass bytes directly so the OS handles the write.
+        // file_picker writes the supplied bytes and returns a URI, including
+        // Android content:// URIs.
         final bytes = await File(compressToPath).readAsBytes();
-        try {
-          await File(compressToPath).delete();
-        } catch (_) {}
-        savedPath = await FilePicker.platform.saveFile(
+        final savedUri = await FilePicker.saveFile(
           dialogTitle: 'Save compressed file',
           fileName: name,
           bytes: bytes,
         );
-        if (savedPath == null) {
+        try {
+          await File(compressToPath).delete();
+        } catch (_) {}
+        if (savedUri == null) {
           if (mounted) setState(() => item.status = QueueStatus.cancelled);
           token.cancel();
           return;
         }
+        savedPath = savedUri.scheme == 'file'
+            ? savedUri.toFilePath()
+            : savedUri.toString();
       }
 
       if (!mounted) return;
@@ -333,7 +335,7 @@ class _HomePageState extends State<HomePage> {
         item.status = QueueStatus.done;
         item.progress = 1.0;
         item.result = CompressionResult(
-          outputPath: savedPath!,
+          outputPath: savedPath,
           originalBytes: result.originalBytes,
           compressedBytes: result.compressedBytes,
           improved: result.improved,
@@ -417,7 +419,7 @@ class _HomePageState extends State<HomePage> {
                 Text(
                   result.improved
                       ? '${result.reductionPercent.toStringAsFixed(1)}% smaller\n'
-                          '${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)}'
+                            '${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)}'
                       : 'The file is already well-compressed.\nNo significant reduction was possible.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -501,8 +503,9 @@ class _HomePageState extends State<HomePage> {
     final isMobileDevice = Platform.isAndroid || Platform.isIOS;
     final isWide = isMobileDevice && width >= 600;
 
-    Widget body =
-        isWide ? _buildWideLayout(scheme) : _buildNarrowLayout(scheme);
+    Widget body = isWide
+        ? _buildWideLayout(scheme)
+        : _buildNarrowLayout(scheme);
 
     if (_isDesktop) {
       body = DropTarget(
@@ -571,28 +574,32 @@ class _HomePageState extends State<HomePage> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-            child: ConstrainedBox(
-              constraints:
-                  BoxConstraints(minHeight: constraints.maxHeight - 64),
-              child: IntrinsicHeight(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildHeader(scheme),
-                    const SizedBox(height: 28),
-                    _buildQueueArea(scheme),
-                    const Spacer(),
-                    _buildActions(scheme),
-                    const SizedBox(height: 20),
-                    _buildFooter(scheme),
-                    const SizedBox(height: 4),
-                  ],
+          builder: (context, constraints) {
+            final minHeight = constraints.hasBoundedHeight
+                ? (constraints.maxHeight - 64).clamp(0.0, double.infinity)
+                : 0.0;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: minHeight.toDouble()),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildHeader(scheme),
+                      const SizedBox(height: 28),
+                      _buildQueueArea(scheme),
+                      const Spacer(),
+                      _buildActions(scheme),
+                      const SizedBox(height: 20),
+                      _buildFooter(scheme),
+                      const SizedBox(height: 4),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -697,8 +704,8 @@ class _HomePageState extends State<HomePage> {
             isDragging
                 ? Icons.file_download_rounded
                 : (_isDesktop
-                    ? Icons.file_upload_outlined
-                    : Icons.upload_file_rounded),
+                      ? Icons.file_upload_outlined
+                      : Icons.upload_file_rounded),
             size: 48,
             color: isDragging
                 ? scheme.primary.withValues(alpha: 0.7)
@@ -740,15 +747,16 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: scheme.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: scheme.primary.withValues(alpha: 0.4),
-        ),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.file_download_rounded,
-              size: 16, color: scheme.primary.withValues(alpha: 0.8)),
+          Icon(
+            Icons.file_download_rounded,
+            size: 16,
+            color: scheme.primary.withValues(alpha: 0.8),
+          ),
           const SizedBox(width: 8),
           Text(
             'Release to add to queue',
@@ -771,10 +779,7 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _borderColorFor(item, scheme),
-          width: 1.5,
-        ),
+        border: Border.all(color: _borderColorFor(item, scheme), width: 1.5),
       ),
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -827,8 +832,10 @@ class _HomePageState extends State<HomePage> {
                 transitionBuilder: (child, animation) => FadeTransition(
                   opacity: animation,
                   child: ScaleTransition(
-                    scale:
-                        Tween<double>(begin: 0.7, end: 1.0).animate(animation),
+                    scale: Tween<double>(
+                      begin: 0.7,
+                      end: 1.0,
+                    ).animate(animation),
                     child: child,
                   ),
                 ),
@@ -849,20 +856,19 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         Expanded(
                           child: TweenAnimationBuilder<double>(
-                            tween: Tween<double>(
-                              begin: 0,
-                              end: item.progress,
-                            ),
+                            tween: Tween<double>(begin: 0, end: item.progress),
                             duration: const Duration(milliseconds: 500),
                             curve: Curves.easeOutCubic,
                             builder: (context, value, _) => ClipRRect(
                               borderRadius: BorderRadius.circular(4),
                               child: LinearProgressIndicator(
                                 value: value > 0 ? value : null,
-                                backgroundColor:
-                                    scheme.onSurface.withValues(alpha: 0.08),
+                                backgroundColor: scheme.onSurface.withValues(
+                                  alpha: 0.08,
+                                ),
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                    scheme.primary),
+                                  scheme.primary,
+                                ),
                                 minHeight: 4,
                               ),
                             ),
@@ -875,13 +881,16 @@ class _HomePageState extends State<HomePage> {
                             duration: const Duration(milliseconds: 200),
                             transitionBuilder: (child, animation) =>
                                 FadeTransition(
-                                    opacity: animation, child: child),
+                                  opacity: animation,
+                                  child: child,
+                                ),
                             child: Text(
                               item.progress > 0
                                   ? '${(item.progress * 100).toStringAsFixed(0)}%'
                                   : '',
                               key: ValueKey(
-                                  (item.progress * 100).toStringAsFixed(0)),
+                                (item.progress * 100).toStringAsFixed(0),
+                              ),
                               textAlign: TextAlign.right,
                               style: TextStyle(
                                 fontSize: 11,
@@ -913,8 +922,9 @@ class _HomePageState extends State<HomePage> {
     // content:// URIs come from Android's Storage Access Framework.
     // canLaunchUrl always returns false for content:// URIs without
     // extra <queries> manifest entries, so skip the check and launch directly.
-    final uri =
-        path.startsWith('content://') ? Uri.parse(path) : Uri.file(path);
+    final uri = path.startsWith('content://')
+        ? Uri.parse(path)
+        : Uri.file(path);
     try {
       await launchUrl(uri);
     } catch (_) {}
@@ -954,13 +964,19 @@ class _HomePageState extends State<HomePage> {
             ),
           );
         }
-        return const Icon(Icons.check_circle_rounded,
-            size: 20, color: Color(0xFF22C55E));
+        return const Icon(
+          Icons.check_circle_rounded,
+          size: 20,
+          color: Color(0xFF22C55E),
+        );
       case QueueStatus.error:
         return Icon(Icons.error_outline_rounded, size: 20, color: scheme.error);
       case QueueStatus.cancelled:
-        return Icon(Icons.cancel_outlined,
-            size: 20, color: scheme.onSurface.withValues(alpha: 0.35));
+        return Icon(
+          Icons.cancel_outlined,
+          size: 20,
+          color: scheme.onSurface.withValues(alpha: 0.35),
+        );
     }
   }
 
@@ -1047,10 +1063,12 @@ class _HomePageState extends State<HomePage> {
   // ── Actions ───────────────────────────────────────────────────────────────
 
   Widget _buildActions(ColorScheme scheme) {
-    final waitingCount =
-        _queue.where((i) => i.status == QueueStatus.waiting).length;
-    final compressLabel =
-        waitingCount > 1 ? 'Compress All ($waitingCount)' : 'Compress';
+    final waitingCount = _queue
+        .where((i) => i.status == QueueStatus.waiting)
+        .length;
+    final compressLabel = waitingCount > 1
+        ? 'Compress All ($waitingCount)'
+        : 'Compress';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1086,8 +1104,9 @@ class _HomePageState extends State<HomePage> {
                   label: const Text('Cancel'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: scheme.error,
-                    side:
-                        BorderSide(color: scheme.error.withValues(alpha: 0.5)),
+                    side: BorderSide(
+                      color: scheme.error.withValues(alpha: 0.5),
+                    ),
                   ),
                 )
               : ElevatedButton.icon(
@@ -1096,10 +1115,12 @@ class _HomePageState extends State<HomePage> {
                   icon: const Icon(Icons.compress_rounded, size: 20),
                   label: Text(compressLabel),
                   style: ElevatedButton.styleFrom(
-                    disabledBackgroundColor:
-                        scheme.primary.withValues(alpha: 0.2),
-                    disabledForegroundColor:
-                        scheme.primary.withValues(alpha: 0.4),
+                    disabledBackgroundColor: scheme.primary.withValues(
+                      alpha: 0.2,
+                    ),
+                    disabledForegroundColor: scheme.primary.withValues(
+                      alpha: 0.4,
+                    ),
                   ),
                 ),
         ),
@@ -1135,7 +1156,7 @@ class _HomePageState extends State<HomePage> {
     return Row(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(compact ? 12 : 16),
+          //borderRadius: BorderRadius.circular(compact ? 12 : 16),
           child: Image.asset(
             'assets/images/logo.png',
             width: logoSize,
@@ -1177,7 +1198,9 @@ class _HomePageState extends State<HomePage> {
             color: scheme.onSurface.withValues(alpha: 0.45),
             size: 22,
           ),
-          tooltip: widget.isDark ? 'Switch to light mode' : 'Switch to dark mode',
+          tooltip: widget.isDark
+              ? 'Switch to light mode'
+              : 'Switch to dark mode',
         ),
         IconButton(
           onPressed: () => _showSupportModal(context, scheme),
@@ -1295,8 +1318,11 @@ class _InfoSheet extends StatelessWidget {
                           color: scheme.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.info_outline_rounded,
-                            color: scheme.primary, size: 22),
+                        child: Icon(
+                          Icons.info_outline_rounded,
+                          color: scheme.primary,
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Text(
@@ -1316,7 +1342,8 @@ class _InfoSheet extends StatelessWidget {
                     icon: Icons.lock_outline_rounded,
                     iconColor: _green,
                     title: 'Your files never leave your device',
-                    body: 'Everything happens locally. KIVO does not upload, '
+                    body:
+                        'Everything happens locally. KIVO does not upload, '
                         'send, or store your files anywhere. No internet '
                         'connection is needed — not even for setup.',
                   ),
@@ -1326,7 +1353,8 @@ class _InfoSheet extends StatelessWidget {
                     icon: Icons.auto_fix_high_rounded,
                     iconColor: scheme.primary,
                     title: 'Smart compression',
-                    body: 'KIVO analyses each file and applies the best '
+                    body:
+                        'KIVO analyses each file and applies the best '
                         'algorithm for its type:\n\n'
                         '• Images — re-encoded at a slightly lower quality '
                         'that is imperceptible to the eye.\n'
@@ -1355,7 +1383,8 @@ class _InfoSheet extends StatelessWidget {
                     icon: Icons.lightbulb_outline_rounded,
                     iconColor: const Color(0xFF818CF8),
                     title: 'Good to know',
-                    body: '• Results vary by file — a heavily compressed video '
+                    body:
+                        '• Results vary by file — a heavily compressed video '
                         'may not shrink much further.\n'
                         '• The original file is never modified or deleted.\n'
                         '• Video compression can take a minute or two for '
@@ -1396,9 +1425,7 @@ class _Section extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.onSurface.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: scheme.onSurface.withValues(alpha: 0.07),
-        ),
+        border: Border.all(color: scheme.onSurface.withValues(alpha: 0.07)),
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -1431,10 +1458,7 @@ class _Section extends StatelessWidget {
               ),
             ),
           ],
-          if (child != null) ...[
-            const SizedBox(height: 12),
-            child!,
-          ],
+          if (child != null) ...[const SizedBox(height: 12), child!],
         ],
       ),
     );
@@ -1461,9 +1485,11 @@ class _FormatsGrid extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  Icon(g.$1,
-                      size: 18,
-                      color: scheme.onSurface.withValues(alpha: 0.45)),
+                  Icon(
+                    g.$1,
+                    size: 18,
+                    color: scheme.onSurface.withValues(alpha: 0.45),
+                  ),
                   const SizedBox(width: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1529,8 +1555,11 @@ class _SupportSectionState extends State<_SupportSection> {
         children: [
           Row(
             children: [
-              const Icon(Icons.favorite_rounded,
-                  color: Color(0xFFEC4899), size: 20),
+              const Icon(
+                Icons.favorite_rounded,
+                color: Color(0xFFEC4899),
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1579,8 +1608,9 @@ class _SupportSectionState extends State<_SupportSection> {
               decoration: BoxDecoration(
                 color: scheme.onSurface.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: scheme.onSurface.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: scheme.onSurface.withValues(alpha: 0.1),
+                ),
               ),
               child: Row(
                 children: [
@@ -1603,18 +1633,26 @@ class _SupportSectionState extends State<_SupportSection> {
                     transitionBuilder: (child, animation) => FadeTransition(
                       opacity: animation,
                       child: ScaleTransition(
-                        scale: Tween<double>(begin: 0.6, end: 1.0)
-                            .animate(animation),
+                        scale: Tween<double>(
+                          begin: 0.6,
+                          end: 1.0,
+                        ).animate(animation),
                         child: child,
                       ),
                     ),
                     child: _copied
-                        ? const Icon(Icons.check_rounded,
-                            key: ValueKey('check'), size: 16, color: _green)
-                        : Icon(Icons.copy_rounded,
+                        ? const Icon(
+                            Icons.check_rounded,
+                            key: ValueKey('check'),
+                            size: 16,
+                            color: _green,
+                          )
+                        : Icon(
+                            Icons.copy_rounded,
                             key: const ValueKey('copy'),
                             size: 16,
-                            color: scheme.onSurface.withValues(alpha: 0.4)),
+                            color: scheme.onSurface.withValues(alpha: 0.4),
+                          ),
                   ),
                 ],
               ),
@@ -1660,22 +1698,30 @@ class _SupportSectionState extends State<_SupportSection> {
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
-                onTap: () => launchUrl(Uri.parse(_paypalUrl),
-                    mode: LaunchMode.externalApplication),
+                onTap: () => launchUrl(
+                  Uri.parse(_paypalUrl),
+                  mode: LaunchMode.externalApplication,
+                ),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF003087).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                        color: const Color(0xFF003087).withValues(alpha: 0.25)),
+                      color: const Color(0xFF003087).withValues(alpha: 0.25),
+                    ),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.open_in_new_rounded,
-                          size: 15, color: Color(0xFF009CDE)),
+                      Icon(
+                        Icons.open_in_new_rounded,
+                        size: 15,
+                        color: Color(0xFF009CDE),
+                      ),
                       SizedBox(width: 7),
                       Text(
                         'Donate via PayPal',
@@ -1736,12 +1782,16 @@ class _SupportSheet extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color:
-                              const Color(0xFFEC4899).withValues(alpha: 0.12),
+                          color: const Color(
+                            0xFFEC4899,
+                          ).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.favorite_rounded,
-                            color: Color(0xFFEC4899), size: 22),
+                        child: const Icon(
+                          Icons.favorite_rounded,
+                          color: Color(0xFFEC4899),
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Text(

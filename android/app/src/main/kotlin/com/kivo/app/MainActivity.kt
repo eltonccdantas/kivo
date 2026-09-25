@@ -40,14 +40,19 @@ class MainActivity : FlutterActivity() {
                     com.mr.flutter.plugin.filepicker.FilePickerPlugin()
                 )
             },
+            "file_selector_android" to {
+                flutterEngine.plugins.add(
+                    dev.flutter.packages.file_selector_android.FileSelectorAndroidPlugin()
+                )
+            },
+            "desktop_drop" to {
+                flutterEngine.plugins.add(
+                    one.mixin.desktop.drop.DesktopDropPlugin()
+                )
+            },
             "flutter_image_compress" to {
                 flutterEngine.plugins.add(
                     com.fluttercandies.flutter_image_compress.ImageCompressPlugin()
-                )
-            },
-            "flutter_plugin_android_lifecycle" to {
-                flutterEngine.plugins.add(
-                    io.flutter.plugins.flutter_plugin_android_lifecycle.FlutterAndroidLifecyclePlugin()
                 )
             },
             "package_info_plus" to {
@@ -55,14 +60,14 @@ class MainActivity : FlutterActivity() {
                     dev.fluttercommunity.plus.packageinfo.PackageInfoPlugin()
                 )
             },
-            "path_provider_android" to {
-                flutterEngine.plugins.add(
-                    io.flutter.plugins.pathprovider.PathProviderPlugin()
-                )
-            },
             "printing" to {
                 flutterEngine.plugins.add(
                     net.nfet.flutter.printing.PrintingPlugin()
+                )
+            },
+            "url_launcher_android" to {
+                flutterEngine.plugins.add(
+                    io.flutter.plugins.urllauncher.UrlLauncherPlugin()
                 )
             },
         )
